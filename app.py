@@ -712,117 +712,121 @@ def ocr_receipt():
 
 # ── API：结算 ────────────────────────────────
 
-@app.route('/api/trip/<int:trip_id>/settlement')
-def get_settlement(trip_id):
+def calc_settlement(trip_id):
+    """计算结算数据，返回 dict 或 {'ok': False, 'error': ...}"""
     conn = get_db()
-    
-    members = conn.execute(
-        'SELECT * FROM members WHERE trip_id = ?', (trip_id,)
-    ).fetchall()
-    
-    expenses = conn.execute(
-        'SELECT e.*, m.name as payer_name FROM expenses e '
-        'JOIN members m ON e.member_id = m.id '
-        'WHERE e.trip_id = ?', (trip_id,)
-    ).fetchall()
-    
-    conn.close()
-    
-    if not members:
-        return jsonify({'ok': False, 'error': '没有成员'})
-    
-    # 计算每人应付/应收
-    member_ids = [m['id'] for m in members]
-    paid = {m['id']: 0.0 for m in members}
-    share = {m['id']: 0.0 for m in members}
-    
-    for e in expenses:
-        payer_id = e['member_id']
-        paid[payer_id] = paid.get(payer_id, 0) + e['amount']
+    try:
+        members = conn.execute(
+            'SELECT * FROM members WHERE trip_id = ?', (trip_id,)
+        ).fetchall()
         
-        # 计算分摊
-        split_ids = json.loads(e['split_members']) if e['split_members'] else member_ids
-        if not split_ids:
-            split_ids = member_ids
+        expenses = conn.execute(
+            'SELECT e.*, m.name as payer_name FROM expenses e '
+            'JOIN members m ON e.member_id = m.id '
+            'WHERE e.trip_id = ?', (trip_id,)
+        ).fetchall()
         
-        per_person = e['amount'] / len(split_ids)
-        for sid in split_ids:
-            if sid in share:
-                share[sid] += per_person
-    
-    # 计算结算
-    balances = {}
-    for m in members:
-        net = paid[m['id']] - share[m['id']]
-        balances[m['id']] = {
-            'name': m['name'],
-            'paid': round(paid[m['id']], 2),
-            'should_pay': round(share[m['id']], 2),
-            'balance': round(net, 2)  # 正数：别人欠他；负数：他欠别人
-        }
-    
-    # 生成结算方案（贪心算法）
-    debtor = [(mid, -b['balance']) for mid, b in balances.items() if b['balance'] < 0]
-    creditor = [(mid, b['balance']) for mid, b in balances.items() if b['balance'] > 0]
-    debtor.sort(key=lambda x: -x[1])
-    creditor.sort(key=lambda x: -x[1])
-    
-    settlements = []
-    i = j = 0
-    while i < len(debtor) and j < len(creditor):
-        d_id, d_amount = debtor[i]
-        c_id, c_amount = creditor[j]
+        if not members:
+            return {'ok': False, 'error': '没有成员'}
         
-        settle = min(d_amount, c_amount)
-        if settle > 0.01:
-            settlements.append({
-                'from_id': d_id,
-                'from_name': balances[d_id]['name'],
-                'to_id': c_id,
-                'to_name': balances[c_id]['name'],
-                'amount': round(settle, 2)
+        member_ids = [m['id'] for m in members]
+        paid = {m['id']: 0.0 for m in members}
+        share = {m['id']: 0.0 for m in members}
+        
+        for e in expenses:
+            payer_id = e['member_id']
+            paid[payer_id] = paid.get(payer_id, 0) + e['amount']
+            
+            # 计算分摊
+            split_ids = json.loads(e['split_members']) if e['split_members'] else member_ids
+            if not split_ids:
+                split_ids = member_ids
+            
+            per_person = e['amount'] / len(split_ids)
+            for sid in split_ids:
+                if sid in share:
+                    share[sid] += per_person
+        
+        # 计算结算
+        balances = {}
+        for m in members:
+            net = paid[m['id']] - share[m['id']]
+            balances[m['id']] = {
+                'name': m['name'],
+                'paid': round(paid[m['id']], 2),
+                'should_pay': round(share[m['id']], 2),
+                'balance': round(net, 2)
+            }
+        
+        # 生成结算方案（贪心算法）
+        debtor = [(mid, -b['balance']) for mid, b in balances.items() if b['balance'] < 0]
+        creditor = [(mid, b['balance']) for mid, b in balances.items() if b['balance'] > 0]
+        debtor.sort(key=lambda x: -x[1])
+        creditor.sort(key=lambda x: -x[1])
+        
+        settlements = []
+        i = j = 0
+        while i < len(debtor) and j < len(creditor):
+            d_id, d_amount = debtor[i]
+            c_id, c_amount = creditor[j]
+            
+            settle = min(d_amount, c_amount)
+            if settle > 0.01:
+                settlements.append({
+                    'from_id': d_id,
+                    'from_name': balances[d_id]['name'],
+                    'to_id': c_id,
+                    'to_name': balances[c_id]['name'],
+                    'amount': round(settle, 2)
+                })
+            
+            debtor[i] = (d_id, round(d_amount - settle, 2))
+            creditor[j] = (c_id, round(c_amount - settle, 2))
+            
+            if debtor[i][1] < 0.01:
+                i += 1
+            if creditor[j][1] < 0.01:
+                j += 1
+        
+        # 分类统计
+        category_totals = {}
+        total = 0
+        for e in expenses:
+            cat = e['category']
+            category_totals[cat] = category_totals.get(cat, 0) + e['amount']
+            total += e['amount']
+        
+        # 成员支出明细
+        member_expenses = {}
+        for m in members:
+            member_expenses[m['id']] = {
+                'name': m['name'],
+                'expenses': []
+            }
+        for e in expenses:
+            member_expenses[e['member_id']]['expenses'].append({
+                'amount': e['amount'],
+                'category': e['category'],
+                'note': e['note']
             })
         
-        debtor[i] = (d_id, round(d_amount - settle, 2))
-        creditor[j] = (c_id, round(c_amount - settle, 2))
-        
-        if debtor[i][1] < 0.01:
-            i += 1
-        if creditor[j][1] < 0.01:
-            j += 1
-    
-    # 分类统计
-    category_totals = {}
-    total = 0
-    for e in expenses:
-        cat = e['category']
-        category_totals[cat] = category_totals.get(cat, 0) + e['amount']
-        total += e['amount']
-    
-    # 成员支出明细
-    member_expenses = {}
-    for m in members:
-        member_expenses[m['id']] = {
-            'name': m['name'],
-            'expenses': []
+        return {
+            'ok': True,
+            'total': round(total, 2),
+            'per_person': round(total / len(members), 2) if members else 0,
+            'balances': balances,
+            'settlements': settlements,
+            'category_totals': category_totals,
+            'member_expenses': member_expenses,
+            'member_count': len(members)
         }
-    for e in expenses:
-        member_expenses[e['member_id']]['expenses'].append({
-            'amount': e['amount'],
-            'category': e['category'],
-            'note': e['note']
-        })
-    
-    return jsonify({
-        'ok': True,
-        'total': round(total, 2),
-        'per_person': round(total / len(members), 2) if members else 0,
-        'balances': balances,
-        'settlements': settlements,
-        'category_totals': category_totals,
-        'member_expenses': member_expenses,
-        'member_count': len(members)
-    })
+    finally:
+        conn.close()
+
+
+@app.route('/api/trip/<int:trip_id>/settlement')
+def get_settlement(trip_id):
+    return jsonify(calc_settlement(trip_id))
 
 # ── API：多人同步 ───────────────────────────
 
@@ -971,10 +975,7 @@ def save_settlement(trip_id):
     data = request.get_json()
     note = data.get('note', '')
     
-    # 直接调用结算函数
-    with app.test_client() as client:
-        resp = client.get(f'/api/trip/{trip_id}/settlement')
-        snap = resp.get_json()
+    snap = calc_settlement(trip_id)
     
     if not snap.get('ok'):
         return jsonify({'ok': False, 'error': '无法获取结算数据'})

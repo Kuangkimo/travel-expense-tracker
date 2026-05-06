@@ -551,7 +551,7 @@ async function submitEditExpense() {
     if (splitType === 'equal') {
         splitMembers = [];
     } else if (splitType === 'self') {
-        splitMembers = [];
+        splitMembers = [currentMemberId];
     } else {
         splitMembers = Array.from(
             document.querySelectorAll('#editMemberCheckboxes input:checked')
