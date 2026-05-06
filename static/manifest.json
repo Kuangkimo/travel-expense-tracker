@@ -1,0 +1,9 @@
+{
+  "name": "出游账本",
+  "short_name": "出游账本",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F2F2F7",
+  "theme_color": "#007AFF",
+  "description": "出游花费统计工具 - 截图识别、AA分摊、多人同步"
+}
