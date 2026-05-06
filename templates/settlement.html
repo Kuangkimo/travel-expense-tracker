@@ -51,6 +51,17 @@
         </div>
     </div>
 
+    <!-- 结算历史 -->
+    <div class="section">
+        <div class="section-header">
+            <h3>📋 结算记录</h3>
+            <button class="btn-sm" onclick="saveSettlement()">💾 保存本次结算</button>
+        </div>
+        <div id="settlementHistory" class="settlement-history">
+            <div class="loading-text">加载中...</div>
+        </div>
+    </div>
+
     <!-- 截图预览弹窗 -->
     <div id="screenshotModal" class="modal" style="display:none;">
         <div class="modal-backdrop" onclick="closeScreenshotModal()"></div>
@@ -73,6 +84,7 @@ let settlementData = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     loadSettlement();
+    loadHistory();
 });
 
 async function loadSettlement() {
@@ -361,6 +373,60 @@ function fallbackCopy() {
 
 function closeScreenshotModal() {
     document.getElementById('screenshotModal').style.display = 'none';
+}
+
+// ── 结算记录 ──
+async function saveSettlement() {
+    const note = prompt('给这次结算加个备注（可选）：', `结算 ${new Date().toLocaleDateString()}`);
+    if (note === null) return;
+    
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/settlement/save`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({note: note || ''})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            showToast('✅ 结算记录已保存');
+            loadHistory();
+        } else {
+            showToast(data.error || '保存失败');
+        }
+    } catch(e) {
+        showToast('网络错误');
+    }
+}
+
+async function loadHistory() {
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/settlement/history`);
+        const data = await res.json();
+        const container = document.getElementById('settlementHistory');
+        
+        if (!data.ok || !data.records || data.records.length === 0) {
+            container.innerHTML = '<div class="empty-hint">暂无保存的结算记录</div>';
+            return;
+        }
+        
+        container.innerHTML = data.records.map(r => {
+            const s = r.snapshot;
+            return `
+                <div class="history-item" onclick="viewHistorySnapshot(${r.id})">
+                    <div class="history-info">
+                        <span class="history-total">¥${s.total.toFixed(2)}</span>
+                        <span class="history-time">${formatTime(r.created_at)}</span>
+                        ${r.note ? `<span class="history-note">${r.note}</span>` : ''}
+                    </div>
+                    <div class="history-arrow">→</div>
+                </div>
+            `;
+        }).join('');
+    } catch(e) {}
+}
+
+function viewHistorySnapshot(id) {
+    showToast('点击结算记录查看详情（功能开发中）');
 }
 
 function goBack() {

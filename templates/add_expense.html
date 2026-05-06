@@ -104,6 +104,10 @@
                     <label>备注</label>
                     <input type="text" id="ocrNote" placeholder="自动提取或手动修改" maxlength="100">
                 </div>
+                <div class="form-group" id="ocrSourceGroup" style="display:none;">
+                    <label>识别引擎</label>
+                    <div id="ocrSourceBadge" class="ocr-source-badge"></div>
+                </div>
                 <div class="form-group">
                     <label>原始识别文本</label>
                     <pre id="ocrRawText" class="ocr-raw"></pre>
@@ -281,6 +285,16 @@ function handleOCRFile(input) {
             document.getElementById('ocrAmount').value = parsed.amount || '';
             document.getElementById('ocrNote').value = parsed.note || '';
             document.getElementById('ocrRawText').textContent = data.ocr_text || '无识别文本';
+            
+            // 显示识别引擎
+            if (parsed.ocr_source) {
+                const badge = document.getElementById('ocrSourceBadge');
+                const isBaidu = parsed.ocr_source === 'baidu';
+                badge.innerHTML = isBaidu ? 
+                    '<span style="background:#E8F5E9;color:#2E7D32;padding:4px 10px;border-radius:6px;font-size:13px;">🤖 百度OCR</span>' :
+                    '<span style="background:#FFF3E0;color:#E65100;padding:4px 10px;border-radius:6px;font-size:13px;">🔧 Tesseract离线识别</span>';
+                document.getElementById('ocrSourceGroup').style.display = 'block';
+            }
             
             // 自动选中分类
             if (parsed.category) {

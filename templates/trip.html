@@ -28,6 +28,14 @@
         </div>
     </div>
 
+    <!-- 成员栏 -->
+    <div class="member-bar" id="memberBar">
+        <div class="member-chips" id="memberChips">
+            <div class="loading-text">加载中...</div>
+        </div>
+        <button class="member-add-btn" onclick="manageMembers()">+ 添加</button>
+    </div>
+
     <!-- 分类占比 -->
     <div class="section">
         <div class="section-header">
@@ -125,6 +133,34 @@
         </div>
     </div>
 
+    <!-- 编辑支出弹窗 -->
+    <div id="editModal" class="modal" style="display:none;">
+        <div class="modal-backdrop" onclick="closeEditModal()"></div>
+        <div class="modal-content">
+            <h3>✎ 编辑支出</h3>
+            <div class="form-group">
+                <label>金额 (¥)</label>
+                <input type="number" id="editAmount" step="0.01" min="0" inputmode="decimal">
+            </div>
+            <div class="form-group">
+                <label>分类</label>
+                <div class="category-picker" id="editCategoryPicker">
+                    {% for cat in categories %}
+                    <button class="cat-option" data-cat="{{ cat }}" onclick="selectEditCat(this)">{{ icons[cat] }} {{ cat }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="form-group">
+                <label>备注</label>
+                <input type="text" id="editNote" maxlength="100">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeEditModal()">取消</button>
+                <button class="btn btn-primary" onclick="submitEditExpense()">保存修改</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 成员管理弹窗 -->
     <div id="memberModal" class="modal" style="display:none;">
         <div class="modal-backdrop" onclick="closeMemberModal()"></div>
@@ -181,6 +217,11 @@ async function loadTripInfo() {
         document.getElementById('tripNameHeader').textContent = trip.name;
         document.getElementById('shareBadge').textContent = `📋 ${trip.share_code}`;
         document.getElementById('memberCount').textContent = members.length;
+        
+        // 渲染成员标签
+        document.getElementById('memberChips').innerHTML = members.map(m => 
+            `<span class="member-chip ${m.is_self ? 'self' : ''}">${m.is_self ? '👤 ' : ''}${m.name}</span>`
+        ).join('');
         
         // 填充快速添加的付款人选项
         const payerSelect = document.getElementById('quickPayer');
@@ -243,7 +284,10 @@ async function loadExpenses() {
                             <span class="expense-time">${formatTime(e.expense_time)}</span>
                         </div>
                     </div>
-                    <button class="expense-delete" onclick="deleteExpense(${e.id})">✕</button>
+                    <div class="expense-actions">
+                        <button class="expense-edit" onclick="editExpense(${e.id},'${e.category}','${e.amount}','${e.note||''}','${e.split_type}','${e.payer_name}')">✎</button>
+                        <button class="expense-delete" onclick="deleteExpense(${e.id})">✕</button>
+                    </div>
                 </div>
             `).join('');
         }
@@ -397,6 +441,62 @@ async function deleteExpense(id) {
             loadExpenses();
         }
     } catch(e) {}
+}
+
+// ── 编辑支出 ──
+let editingExpenseId = null;
+
+function editExpense(id, category, amount, note, splitType, payerName) {
+    editingExpenseId = id;
+    document.getElementById('editAmount').value = amount;
+    document.getElementById('editNote').value = note;
+    
+    // 选中分类
+    document.querySelectorAll('#editCategoryPicker .cat-option').forEach(b => {
+        b.classList.toggle('selected', b.dataset.cat === category);
+    });
+    
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function selectEditCat(el) {
+    document.querySelectorAll('#editCategoryPicker .cat-option').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').style.display = 'none';
+    editingExpenseId = null;
+}
+
+async function submitEditExpense() {
+    const amount = parseFloat(document.getElementById('editAmount').value);
+    const note = document.getElementById('editNote').value.trim();
+    const selectedCat = document.querySelector('#editCategoryPicker .selected');
+    
+    if (!amount || amount <= 0) { showToast('请输入有效金额'); return; }
+    if (!selectedCat) { showToast('请选择分类'); return; }
+    
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/expense/${editingExpenseId}/edit`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                amount, category: selectedCat.dataset.cat, note
+            })
+        });
+        const data = await res.json();
+        
+        if (data.ok) {
+            showToast('✅ 已修改');
+            closeEditModal();
+            loadExpenses();
+        } else {
+            showToast(data.error || '修改失败');
+        }
+    } catch(e) {
+        showToast('网络错误');
+    }
 }
 
 // ── 成员管理 ──

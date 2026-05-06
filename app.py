@@ -79,6 +79,14 @@ def init_db():
             synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS settlements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            trip_id INTEGER NOT NULL,
+            snapshot_json TEXT NOT NULL,
+            note TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE
+        );
     """)
     conn.commit()
     conn.close()
@@ -459,107 +467,173 @@ def delete_expense(trip_id, expense_id):
     finally:
         conn.close()
 
+@app.route('/api/trip/<int:trip_id>/expense/<int:expense_id>/edit', methods=['POST'])
+def edit_expense(trip_id, expense_id):
+    data = request.get_json()
+    amount = float(data.get('amount', 0))
+    category = data.get('category', '其他')
+    note = data.get('note', '')
+    split_type = data.get('split_type', 'equal')
+    split_members = data.get('split_members', '[]')
+    expense_time = data.get('expense_time', '')
+    member_id = int(data.get('member_id', 0))
+    
+    if amount <= 0:
+        return jsonify({'ok': False, 'error': '金额必须大于0'})
+    if isinstance(split_members, str):
+        split_members = json.loads(split_members)
+    
+    conn = get_db()
+    try:
+        conn.execute(
+            'UPDATE expenses SET amount=?, category=?, note=?, split_type=?, split_members=?, expense_time=? WHERE id=? AND trip_id=?',
+            (amount, category, note, split_type, json.dumps(split_members, ensure_ascii=False), 
+             expense_time or datetime.now().strftime('%Y-%m-%d %H:%M'), expense_id, trip_id)
+        )
+        conn.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'ok': False, 'error': str(e)})
+    finally:
+        conn.close()
+
 # ── OCR引擎 ────────────────────────────────
-# 增强型预处理 + 多策略并发识别
+# 百度OCR（优先）+ Tesseract（降级备用）
+
+import base64
+
+def baidu_ocr_access_token():
+    """获取百度OCR access_token（缓存到全局变量）"""
+    api_key = os.environ.get('BAIDU_OCR_API_KEY', '')
+    secret_key = os.environ.get('BAIDU_OCR_SECRET_KEY', '')
+    if not api_key or not secret_key:
+        return None
+    try:
+        import requests as req
+        r = req.get(
+            f'https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id={api_key}&client_secret={secret_key}',
+            timeout=5
+        )
+        return r.json().get('access_token')
+    except:
+        return None
+
+def baidu_ocr(image_bytes):
+    """调用百度OCR通用文字识别（免费500次/天）"""
+    token = baidu_ocr_access_token()
+    if not token:
+        return None
+    
+    b64 = base64.b64encode(image_bytes).decode('utf-8')
+    try:
+        import requests as req
+        r = req.post(
+            f'https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token={token}',
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            data={'image': b64},
+            timeout=10
+        )
+        result = r.json()
+        if 'words_result' in result:
+            texts = [w['words'] for w in result['words_result']]
+            return '\n'.join(texts)
+        return None
+    except:
+        return None
 
 def preprocess_image_for_ocr(img, scale=3):
-    """使用PIL进行7步预处理，专为支付截图优化"""
-    # 1. 大幅放大（支付截图文字小，放大后识别率显著提升）
+    """使用PIL进行7步预处理，专为支付截图优化（Tesseract降级用）"""
     w, h = img.size
     img = img.resize((w * scale, h * scale), Image.LANCZOS)
-    
-    # 2. 转灰度
     if img.mode != 'L':
         img = img.convert('L')
-    
-    # 3. 增强对比度
     enhancer = ImageEnhance.Contrast(img)
     img = enhancer.enhance(2.0)
-    
-    # 4. 锐化两次
     img = img.filter(ImageFilter.SHARPEN)
     img = img.filter(ImageFilter.SHARPEN)
-    
-    # 5. 自适应二值化
     blurred = img.filter(ImageFilter.GaussianBlur(radius=15))
     pixels = img.load()
     blur_px = blurred.load()
     result = Image.new('L', img.size, 255)
     result_px = result.load()
-    
     for y in range(img.height):
         for x in range(img.width):
             if pixels[x, y] < blur_px[x, y] - 15:
-                result_px[x, y] = 0  # 文字（黑色）
+                result_px[x, y] = 0
             else:
-                result_px[x, y] = 255  # 背景（白色）
-    
-    # 6. 去噪
+                result_px[x, y] = 255
     result = result.filter(ImageFilter.MedianFilter(size=3))
     return result
 
-
 def try_ocr_pass(image, config_str, lang='chi_sim+eng'):
-    """尝试一次OCR识别"""
     try:
         text = pytesseract.image_to_string(image, lang=lang, config=config_str)
         return text.strip()
     except:
         return ''
 
-
-def smart_ocr(image):
-    """智能OCR：多策略并发，自动选最优结果"""
+def tesseract_fallback(image):
+    """Tesseract降级识别（多策略）"""
     from collections import Counter
-    
     all_results = []
-    
-    # 策略1：放大3倍+仅数字（专抓金额）
     img1 = preprocess_image_for_ocr(image, scale=3)
-    t1 = try_ocr_pass(img1, 
-        '--psm 6 --oem 3 -c tessedit_char_whitelist=0123456789.')
+    t1 = try_ocr_pass(img1, '--psm 6 --oem 3 -c tessedit_char_whitelist=0123456789.')
     if t1: all_results.append(('digits', t1))
-    
-    # 策略2：放大3倍+完整中文（抓备注和分类）
     t2 = try_ocr_pass(img1, '--psm 6 --oem 3')
     if t2: all_results.append(('full', t2))
-    
-    # 策略3：2倍放大+快速模式
     img3 = image.copy()
-    if img3.mode != 'L':
-        img3 = img3.convert('L')
+    if img3.mode != 'L': img3 = img3.convert('L')
     enhancer = ImageEnhance.Contrast(img3)
     img3 = enhancer.enhance(1.5)
     w, h = img3.size
     img3 = img3.resize((w * 2, h * 2), Image.LANCZOS)
     t3 = try_ocr_pass(img3, '--psm 4 --oem 3')
     if t3: all_results.append(('fast', t3))
-    
-    # 策略4：仅英文数字
     t4 = try_ocr_pass(img1, '--psm 6 --oem 3', lang='eng')
     if t4: all_results.append(('eng', t4))
     
-    # 从所有结果中提取金额
     amounts = []
     for name, text in all_results:
         found = re.findall(r'(?:¥|￥)?(\d+(?:\.\d{1,2})?)', text)
         for a in found:
             try:
                 val = float(a)
-                if 1 < val < 100000:
-                    amounts.append(val)
-            except:
-                pass
-    
-    # 取出现频率最高的金额
+                if 1 < val < 100000: amounts.append(val)
+            except: pass
     best_amount = None
     if amounts:
         val_counts = Counter(amounts)
         best_amount = val_counts.most_common(1)[0][0]
-    
-    # 合并所有文本
     combined = '\n'.join(r[1] for r in all_results)
     return combined, best_amount
+
+
+def parse_ocr_full_text(text):
+    """从OCR文本中提取金额、分类、备注"""
+    if not text:
+        return {'amount': None, 'category': '', 'note': ''}
+    
+    amounts = re.findall(r'(?:¥|￥)?(\d+(?:\.\d{1,2})?)', text)
+    best_amount = None
+    for a in amounts:
+        try:
+            val = float(a)
+            if 1 < val < 100000:
+                best_amount = val
+                break
+        except: pass
+    
+    clean = re.sub(r'[¥￥]?\d+(?:\.\d{1,2})?', '', text).strip()
+    category = ''
+    for cat in CATEGORIES:
+        if cat in clean:
+            category = cat
+            clean = clean.replace(cat, '').strip()
+            break
+    clean = re.sub(r'[=+\-*/<>(){}【】\[\]：:：、，,。.！!？?\s]+', ' ', clean).strip()
+    
+    return {'amount': best_amount, 'category': category, 'note': clean[:100]}
 
 
 @app.route('/api/ocr', methods=['POST'])
@@ -572,25 +646,32 @@ def ocr_receipt():
         return jsonify({'ok': False, 'error': '无效文件'})
     
     try:
-        import io
-        image = Image.open(io.BytesIO(file.read()))
+        image_data = file.read()
+        image = Image.open(io.BytesIO(image_data))
         
-        # 执行智能OCR
-        ocr_text, best_amount = smart_ocr(image)
+        ocr_source = 'tesseract'
+        ocr_text, best_amount = tesseract_fallback(image)
         
-        result = {'amount': best_amount, 'category': '', 'note': ''}
+        # 尝试百度OCR（若有API Key）
+        baidu_text = baidu_ocr(image_data)
+        if baidu_text:
+            ocr_source = 'baidu'
+            ocr_text = baidu_text
+            result = parse_ocr_full_text(baidu_text)
+            best_amount = result['amount']
+        else:
+            result = {'amount': best_amount, 'category': '', 'note': ''}
+            if best_amount:
+                clean = re.sub(r'[¥￥]?\d+(?:\.\d{1,2})?', '', ocr_text).strip()
+                for cat in CATEGORIES:
+                    if cat in clean:
+                        result['category'] = cat
+                        clean = clean.replace(cat, '').strip()
+                        break
+                clean = re.sub(r'[=+\-*/<>(){}【】\[\]：:：、，,。.！!？?]', ' ', clean).strip()
+                result['note'] = ' '.join(clean.split())[:100]
         
-        if best_amount:
-            # 从完整文本中提取备注和分类
-            clean = re.sub(r'[¥￥]?\d+(?:\.\d{1,2})?', '', ocr_text).strip()
-            for cat in CATEGORIES:
-                if cat in clean:
-                    result['category'] = cat
-                    clean = clean.replace(cat, '').strip()
-                    break
-            # 清理干扰文本
-            clean = re.sub(r'[=+\-*/<>(){}【】\[\]：:：、，,。.！!？?]', ' ', clean).strip()
-            result['note'] = ' '.join(clean.split())[:100]
+        result['ocr_source'] = ocr_source
         
         return jsonify({
             'ok': best_amount is not None,
@@ -599,7 +680,6 @@ def ocr_receipt():
         })
         
     except Exception as e:
-        import traceback
         return jsonify({'ok': False, 'error': f'OCR识别失败: {str(e)}'})
 
 # ── API：结算 ────────────────────────────────
@@ -853,6 +933,55 @@ def sync_reconcile(trip_id):
         'ok': True,
         'members': by_member,
         'overall_total': round(overall_total, 2)
+    })
+
+# ── 结算记录 ────────────────────────────────
+
+@app.route('/api/trip/<int:trip_id>/settlement/save', methods=['POST'])
+def save_settlement(trip_id):
+    """保存当前结算快照"""
+    data = request.get_json()
+    note = data.get('note', '')
+    
+    # 直接调用结算函数
+    with app.test_client() as client:
+        resp = client.get(f'/api/trip/{trip_id}/settlement')
+        snap = resp.get_json()
+    
+    if not snap.get('ok'):
+        return jsonify({'ok': False, 'error': '无法获取结算数据'})
+    
+    conn = get_db()
+    try:
+        conn.execute(
+            'INSERT INTO settlements (trip_id, snapshot_json, note) VALUES (?, ?, ?)',
+            (trip_id, json.dumps(snap, ensure_ascii=False), note)
+        )
+        conn.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+    finally:
+        conn.close()
+
+@app.route('/api/trip/<int:trip_id>/settlement/history')
+def settlement_history(trip_id):
+    """获取结算历史"""
+    conn = get_db()
+    records = conn.execute(
+        'SELECT * FROM settlements WHERE trip_id = ? ORDER BY created_at DESC LIMIT 20',
+        (trip_id,)
+    ).fetchall()
+    conn.close()
+    
+    return jsonify({
+        'ok': True,
+        'records': [{
+            'id': r['id'],
+            'snapshot': json.loads(r['snapshot_json']),
+            'note': r['note'],
+            'created_at': r['created_at']
+        } for r in records]
     })
 
 # ── 静态文件 ────────────────────────────────

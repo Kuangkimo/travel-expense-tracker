@@ -296,6 +296,48 @@ body {
     font-size: 11px; color: var(--text-secondary);
 }
 
+/* ── 成员栏 ── */
+.member-bar {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+}
+
+.member-chips {
+    display: flex; gap: 6px;
+    flex: 1; overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.member-chip {
+    display: inline-flex; align-items: center;
+    padding: 6px 12px;
+    background: var(--card);
+    border-radius: 20px;
+    font-size: 13px;
+    white-space: nowrap;
+    box-shadow: var(--shadow);
+}
+
+.member-chip.self {
+    background: var(--primary-light);
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.member-add-btn {
+    display: inline-flex; align-items: center;
+    padding: 6px 14px;
+    border: 1px dashed var(--primary);
+    border-radius: 20px;
+    background: none;
+    color: var(--primary);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 /* ── 区块 ── */
 .section {
     margin-bottom: 20px;
@@ -462,6 +504,20 @@ body {
     cursor: pointer; padding: 4px 8px;
     opacity: 0.5;
 }
+
+.expense-actions {
+    display: flex; gap: 4px;
+    flex-shrink: 0;
+}
+
+.expense-edit {
+    background: none; border: none;
+    color: var(--primary); font-size: 16px;
+    cursor: pointer; padding: 4px 8px;
+    opacity: 0.6;
+}
+
+.expense-edit:hover { opacity: 1; }
 
 /* ── 空状态 ── */
 .empty-state {
@@ -923,6 +979,38 @@ body {
 .reconcile-list {
     display: flex; flex-direction: column;
     gap: 10px;
+}
+
+.settlement-history {
+    display: flex; flex-direction: column;
+    gap: 6px;
+}
+
+.history-item {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+}
+
+.history-info {
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap;
+}
+
+.history-total {
+    font-weight: 700; font-size: 16px;
+    color: var(--primary);
+}
+
+.history-time {
+    font-size: 12px; color: var(--text-secondary);
+}
+
+.history-arrow {
+    color: var(--text-secondary);
 }
 
 .network-url-box {
