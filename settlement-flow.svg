@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 900" font-family="'PingFang SC','Microsoft YaHei',-apple-system,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00b4d8"/>
+      <stop offset="100%" stop-color="#0077b6"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f72585"/>
+      <stop offset="100%" stop-color="#b5179e"/>
+    </linearGradient>
+    <linearGradient id="g3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06d6a0"/>
+      <stop offset="100%" stop-color="#118ab2"/>
+    </linearGradient>
+    <linearGradient id="g4" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffd166"/>
+      <stop offset="100%" stop-color="#fb8b24"/>
+    </linearGradient>
+    <linearGradient id="g5" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e63946"/>
+      <stop offset="100%" stop-color="#c1121f"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-opacity="0.3"/>
+    </filter>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#00b4d8"/>
+    </marker>
+  </defs>
+
+  <rect width="800" height="900" fill="url(#bg)" rx="16"/>
+
+  <!-- Title -->
+  <text x="400" y="45" text-anchor="middle" fill="#e0e0e0" font-size="20" font-weight="bold">出游账本 · 结算流程图</text>
+  <line x1="250" y1="55" x2="550" y2="55" stroke="#333" stroke-width="1"/>
+
+  <!-- Step 1: 获取数据 -->
+  <rect x="250" y="75" width="300" height="50" rx="25" fill="url(#g1)" filter="url(#shadow)"/>
+  <text x="400" y="105" text-anchor="middle" fill="#fff" font-size="15" font-weight="bold">📥 获取行程数据</text>
+  <text x="400" y="140" text-anchor="middle" fill="#888" font-size="11">加载 members + expenses</text>
+
+  <!-- Arrow -->
+  <line x1="400" y1="125" x2="400" y2="155" stroke="#00b4d8" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+  <!-- Step 2: 遍历支出 -->
+  <rect x="225" y="158" width="350" height="50" rx="10" fill="#1e3a5f" stroke="#0077b6" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="400" y="180" text-anchor="middle" fill="#00b4d8" font-size="14" font-weight="bold">🔄 遍历每笔支出</text>
+  <text x="400" y="197" text-anchor="middle" fill="#8899aa" font-size="11">for each expense in expenses</text>
+
+  <line x1="400" y1="208" x2="400" y2="235" stroke="#00b4d8" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+  <!-- Step 3: 记录付款 -->
+  <rect x="200" y="238" width="400" height="55" rx="10" fill="#2d1b69" stroke="#b5179e" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="400" y="260" text-anchor="middle" fill="#f72585" font-size="14" font-weight="bold">💰 记录付款人支出</text>
+  <text x="400" y="278" text-anchor="middle" fill="#9988aa" font-size="11">paid[payer_id] += amount</text>
+
+  <line x1="400" y1="293" x2="400" y2="320" stroke="#b5179e" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+  <!-- Decision: split_members -->
+  <polygon points="400,323 520,398 400,473 280,398" fill="#1b4332" stroke="#06d6a0" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="400" y="390" text-anchor="middle" fill="#06d6a0" font-size="12" font-weight="bold">split_members</text>
+  <text x="400" y="408" text-anchor="middle" fill="#06d6a0" font-size="12" font-weight="bold">是否为空？</text>
+
+  <!-- Yes branch -->
+  <line x1="280" y1="398" x2="155" y2="398" stroke="#06d6a0" stroke-width="2"/>
+  <text x="220" y="390" text-anchor="middle" fill="#06d6a0" font-size="11">是 ([])</text>
+  <line x1="155" y1="398" x2="155" y2="520" stroke="#06d6a0" stroke-width="2"/>
+  <line x1="155" y1="520" x2="230" y2="520" stroke="#06d6a0" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+  <rect x="230" y="493" width="340" height="55" rx="10" fill="#0a3d2e" stroke="#06d6a0" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="400" y="515" text-anchor="middle" fill="#06d6a0" font-size="14" font-weight="bold">👥 按当前全部成员均摊</text>
+  <text x="400" y="535" text-anchor="middle" fill="#88aa99" font-size="11">split_ids = all_current_member_ids</text>
+
+  <!-- No branch -->
+  <line x1="520" y1="398" x2="640" y2="398" stroke="#fb8b24" stroke-width="2"/>
+  <text x="580" y="390" text-anchor="middle" fill="#fb8b24" font-size="11">否 ([1,2,..])</text>
+  <line x1="640" y1="398" x2="640" y2="520" stroke="#fb8b24" stroke-width="2"/>
+  <line x1="640" y1="520" x2="570" y2="520" stroke="#fb8b24" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+  <rect x="570" y="493" width="230" height="55" rx="10" fill="#3d2e0a" stroke="#fb8b24" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="685" y="515" text-anchor="middle" fill="#ffd166" font-size="14" font-weight="bold">🎯 按指定成员分摊</text>
+  <text x="685" y="535" text-anchor="middle" fill="#aa9988" font-size="11">split_ids = stored IDs</text>
+
+  <!-- Two paths merge -->
+  <line x1="400" y1="548" x2="400" y2="575" stroke="#06d6a0" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+  <rect x="230" y="578" width="340" height="50" rx="10" fill="#1e3a5f" stroke="#0077b6" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="400" y="600" text-anchor="middle" fill="#00b4d8" font-size="14" font-weight="bold">➗ 计算每人分摊额</text>
+  <text x="400" y="618" text-anchor="middle" fill="#8899aa" font-size="11">per_person = amount / len(split_ids)</text>
+
+  <line x1="400" y1="628" x2="400" y2="655" stroke="#00b4d8" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+  <rect x="180" y="658" width="440" height="50" rx="10" fill="#2d1b69" stroke="#b5179e" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="400" y="680" text-anchor="middle" fill="#f72585" font-size="14" font-weight="bold">📊 计算收支平衡</text>
+  <text x="400" y="698" text-anchor="middle" fill="#9988aa" font-size="11">balance = paid - share  → 正数=应收, 负数=应付</text>
+
+  <line x1="400" y1="708" x2="400" y2="740" stroke="#b5179e" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+  <rect x="150" y="743" width="500" height="55" rx="10" fill="#3d0a1e" stroke="#e63946" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="400" y="765" text-anchor="middle" fill="#e63946" font-size="14" font-weight="bold">🤝 贪心算法生成结算方案</text>
+  <text x="400" y="783" text-anchor="middle" fill="#aa8899" font-size="11">debtor → creditor: 逐一抵消，最小化交易次数</text>
+
+  <line x1="400" y1="798" x2="400" y2="830" stroke="#e63946" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+  <rect x="250" y="833" width="300" height="45" rx="22" fill="url(#g3)" filter="url(#shadow)"/>
+  <text x="400" y="861" text-anchor="middle" fill="#fff" font-size="15" font-weight="bold">✅ 返回结算结果</text>
+</svg>

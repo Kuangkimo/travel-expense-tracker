@@ -1,22 +1,28 @@
 /* ══════════════════════════════════════
    Travel Expense Tracker - Styles
-   移动优先 · 治愈系 · 轻设计
+   圆周旅迹风格 · 旅行感 · 清爽卡片
    ══════════════════════════════════════ */
 
 :root {
-    --primary: #007AFF;
-    --primary-light: #E8F0FE;
-    --danger: #FF3B30;
-    --success: #34C759;
-    --warning: #FF9500;
-    --bg: #F2F2F7;
+    --primary: #0EA5A0;
+    --primary-dark: #0891B2;
+    --primary-light: #CCFBF1;
+    --primary-gradient: linear-gradient(135deg, #0EA5A0 0%, #0891B2 100%);
+    --danger: #EF4444;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --accent: #F59E0B;
+    --bg: #F8FAFC;
     --card: #FFFFFF;
-    --text: #1C1C1E;
-    --text-secondary: #8E8E93;
-    --border: #E5E5EA;
-    --radius: 12px;
-    --radius-lg: 16px;
-    --shadow: 0 2px 12px rgba(0,0,0,0.06);
+    --text: #0F172A;
+    --text-secondary: #64748B;
+    --border: #E2E8F0;
+    --radius: 14px;
+    --radius-lg: 20px;
+    --radius-xl: 28px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-lg: 0 10px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04);
+    --nav-height: 54px;
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -27,29 +33,32 @@ body {
     color: var(--text);
     -webkit-font-smoothing: antialiased;
     line-height: 1.6;
+    padding-top: var(--nav-height);
 }
 
 /* ── 导航 ── */
 .nav-bar {
     position: fixed; top:0; left:0; right:0;
     z-index: 100;
-    background: rgba(255,255,255,0.92);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(20px) saturate(1.8);
+    -webkit-backdrop-filter: blur(20px) saturate(1.8);
     border-bottom: 1px solid var(--border);
+    height: var(--nav-height);
 }
 
 .nav-inner {
     display: flex; align-items: center;
-    height: 52px; padding: 0 16px;
+    height: var(--nav-height); padding: 0 18px;
     max-width: 640px; margin: 0 auto;
 }
 
 .nav-back {
     background: none; border: none;
-    font-size: 16px; color: var(--primary);
+    font-size: 15px; color: var(--primary);
     cursor: pointer; padding: 8px 4px;
     min-width: 60px; text-align: left;
+    font-weight: 500;
 }
 
 .nav-title {
@@ -66,10 +75,10 @@ body {
     display: inline-block;
     background: var(--primary-light);
     color: var(--primary);
-    padding: 4px 10px;
+    padding: 4px 12px;
     border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
 }
 
@@ -77,77 +86,98 @@ body {
 .main-content {
     max-width: 640px;
     margin: 0 auto;
-    padding: 16px;
+    padding: 20px;
     padding-bottom: 100px;
 }
 
 .main-content.has-nav {
-    padding-top: 68px;
+    padding-top: 8px;
 }
 
 /* ── 首页 ── */
 .home-page {
-    padding-top: 40px;
+    padding-top: 20px;
 }
 
 .logo-area {
     text-align: center;
-    margin-bottom: 32px;
+    margin-bottom: 28px;
+    padding: 32px 20px 24px;
+    background: linear-gradient(180deg, var(--primary-light) 0%, transparent 100%);
+    border-radius: var(--radius-xl);
 }
 
 .logo-icon {
-    font-size: 64px;
-    margin-bottom: 8px;
+    font-size: 56px;
+    margin-bottom: 6px;
+    display: block;
 }
 
 .app-title {
-    font-size: 28px;
-    font-weight: 700;
+    font-size: 30px;
+    font-weight: 800;
     margin-bottom: 4px;
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .app-desc {
-    font-size: 15px;
+    font-size: 14px;
     color: var(--text-secondary);
+    font-weight: 400;
 }
 
 /* ── 卡片 ── */
 .card-list {
     display: flex; flex-direction: column;
-    gap: 12px; margin-bottom: 20px;
+    gap: 14px; margin-bottom: 24px;
 }
 
 .card {
     display: flex; align-items: center;
     background: var(--card);
     border-radius: var(--radius-lg);
-    padding: 18px;
+    padding: 20px;
     box-shadow: var(--shadow);
     cursor: pointer;
-    transition: transform 0.15s;
-    gap: 14px;
+    transition: all 0.2s ease;
+    gap: 16px;
+    border: 1px solid transparent;
+}
+
+.card:hover {
+    border-color: var(--primary-light);
+    box-shadow: var(--shadow-lg);
 }
 
 .card:active { transform: scale(0.98); }
 
 .card-primary {
-    border-left: 4px solid var(--primary);
+    background: linear-gradient(135deg, #ffffff 0%, #f0fdfa 100%);
+    border: 1px solid rgba(14,165,160,0.15);
 }
 
 .card-icon {
-    font-size: 28px;
-    width: 44px; height: 44px;
+    font-size: 26px;
+    width: 48px; height: 48px;
     display: flex; align-items: center; justify-content: center;
     background: var(--primary-light);
-    border-radius: 12px;
+    border-radius: 14px;
     flex-shrink: 0;
+}
+
+.card-primary .card-icon {
+    background: linear-gradient(135deg, #0EA5A0 0%, #0891B2 100%);
+    color: white;
 }
 
 .card-body { flex: 1; }
 
 .card-body h3 {
-    font-size: 16px; font-weight: 600;
-    margin-bottom: 2px;
+    font-size: 17px; font-weight: 600;
+    margin-bottom: 4px;
 }
 
 .card-body p {
@@ -156,6 +186,7 @@ body {
 
 .card-arrow {
     font-size: 18px; color: var(--text-secondary);
+    opacity: 0.5;
 }
 
 /* ── 表单 ── */
@@ -225,75 +256,89 @@ body {
 .btn {
     display: inline-flex; align-items: center; justify-content: center;
     padding: 12px 24px;
-    border: none; border-radius: 10px;
-    font-size: 16px; font-weight: 500;
+    border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 600;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.2s ease;
     gap: 6px;
+    letter-spacing: 0.3px;
 }
 
 .btn:active { transform: scale(0.97); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 .btn-primary {
-    background: var(--primary);
+    background: var(--primary-gradient);
     color: white;
+    box-shadow: 0 4px 14px rgba(14,165,160,0.3);
+}
+
+.btn-primary:hover {
+    box-shadow: 0 6px 20px rgba(14,165,160,0.4);
 }
 
 .btn-secondary {
     background: var(--bg);
     color: var(--text);
+    border: 1px solid var(--border);
 }
 
 .btn-danger {
-    background: #FFF0EF;
+    background: #FEF2F2;
     color: var(--danger);
+    border: 1px solid rgba(239,68,68,0.15);
+}
+
+.btn-big {
+    padding: 16px 28px;
+    font-size: 17px;
+    border-radius: 14px;
 }
 
 .btn-full {
     width: 100%;
 }
 
-.btn-big {
-    padding: 16px;
-    font-size: 18px;
-    border-radius: 12px;
-}
-
 .btn-sm {
-    padding: 6px 12px;
+    padding: 8px 16px;
     font-size: 13px;
-    border: none; border-radius: 8px;
-    background: var(--bg);
-    color: var(--text-secondary);
-    cursor: pointer;
+    border-radius: 10px;
 }
 
 /* ── 统计行 ── */
 .stats-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-bottom: 16px;
+    gap: 10px;
+    margin-bottom: 18px;
 }
 
 .stat-card {
     background: var(--card);
     border-radius: var(--radius);
-    padding: 14px 8px;
+    padding: 16px 6px;
     text-align: center;
     box-shadow: var(--shadow);
     cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border);
+}
+
+.stat-card:hover {
+    border-color: var(--primary-light);
 }
 
 .stat-value {
-    font-size: 20px; font-weight: 700;
+    font-size: 20px;
+    font-weight: 700;
     color: var(--primary);
     margin-bottom: 2px;
 }
 
 .stat-label {
-    font-size: 11px; color: var(--text-secondary);
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 500;
 }
 
 /* ── 成员栏 ── */
@@ -388,16 +433,17 @@ body {
 
 /* ── 区块 ── */
 .section {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
 }
 
 .section-header {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 
 .section-header h3 {
-    font-size: 17px; font-weight: 600;
+    font-size: 16px; font-weight: 600;
+    color: var(--text);
 }
 
 .filter-select {
@@ -438,7 +484,7 @@ body {
 
 .cat-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--primary), #5AC8FA);
+    background: var(--primary-gradient);
     border-radius: 4px;
     transition: width 0.5s ease;
 }
@@ -454,13 +500,14 @@ body {
 }
 
 .chip {
-    padding: 8px 14px;
+    padding: 9px 16px;
     border: 1px solid var(--border);
-    border-radius: 20px;
+    border-radius: 22px;
     background: var(--card);
     font-size: 13px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.2s ease;
+    font-weight: 500;
 }
 
 .chip:active {
@@ -472,18 +519,23 @@ body {
 .action-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-bottom: 20px;
+    gap: 10px;
+    margin-bottom: 24px;
 }
 
 .action-card {
     display: flex; flex-direction: column; align-items: center;
     background: var(--card);
     border-radius: var(--radius-lg);
-    padding: 16px 8px;
+    padding: 18px 8px;
     box-shadow: var(--shadow);
     cursor: pointer;
-    transition: transform 0.15s;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border);
+}
+
+.action-card:hover {
+    border-color: var(--primary-light);
 }
 
 .action-card:active { transform: scale(0.95); }
@@ -496,6 +548,7 @@ body {
 .action-label {
     font-size: 12px;
     color: var(--text-secondary);
+    font-weight: 500;
 }
 
 /* ── 支出列表 ── */
