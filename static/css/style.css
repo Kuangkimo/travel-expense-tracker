@@ -1128,6 +1128,10 @@ body {
 }
 
 /* ── 分摊选项 ── */
+.split-options {
+    display: flex; flex-direction: column;
+    padding: 4px 0;
+}
 .radio-label {
     display: flex; align-items: center;
     gap: 8px;

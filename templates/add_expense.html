@@ -217,7 +217,7 @@ async function submitExpense() {
     
     let splitMembers = [];
     if (splitType === 'equal') {
-        splitMembers = members.map(m => m.id);
+        splitMembers = [];
     } else if (splitType === 'self') {
         splitMembers = [memberId];
     } else {
@@ -390,7 +390,7 @@ async function submitOCRExpense() {
                 amount, category: selectedOCRCat, note,
                 member_id: memberId,
                 split_type: 'equal',
-                split_members: members.map(m => m.id)
+                split_members: []
             })
         });
         const data = await res.json();

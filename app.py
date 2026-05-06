@@ -454,8 +454,21 @@ def get_expenses(trip_id):
 
 @app.route('/api/trip/<int:trip_id>/expense/<int:expense_id>/delete', methods=['POST'])
 def delete_expense(trip_id, expense_id):
+    current_member_id = session.get('member_id')
+    if not current_member_id:
+        return jsonify({'ok': False, 'error': '请先加入行程'})
+    
     conn = get_db()
     try:
+        expense = conn.execute(
+            'SELECT * FROM expenses WHERE id = ? AND trip_id = ?',
+            (expense_id, trip_id)
+        ).fetchone()
+        if not expense:
+            return jsonify({'ok': False, 'error': '支出不存在'})
+        if expense['member_id'] != current_member_id:
+            return jsonify({'ok': False, 'error': '只能删除自己记录的支出'})
+        
         conn.execute(
             'DELETE FROM expenses WHERE id = ? AND trip_id = ?',
             (expense_id, trip_id)
@@ -463,6 +476,7 @@ def delete_expense(trip_id, expense_id):
         conn.commit()
         return jsonify({'ok': True})
     except Exception as e:
+        conn.rollback()
         return jsonify({'ok': False, 'error': str(e)})
     finally:
         conn.close()
@@ -470,21 +484,35 @@ def delete_expense(trip_id, expense_id):
 @app.route('/api/trip/<int:trip_id>/expense/<int:expense_id>/edit', methods=['POST'])
 def edit_expense(trip_id, expense_id):
     data = request.get_json()
-    amount = float(data.get('amount', 0))
-    category = data.get('category', '其他')
-    note = data.get('note', '')
-    split_type = data.get('split_type', 'equal')
-    split_members = data.get('split_members', '[]')
-    expense_time = data.get('expense_time', '')
-    member_id = int(data.get('member_id', 0))
     
-    if amount <= 0:
-        return jsonify({'ok': False, 'error': '金额必须大于0'})
-    if isinstance(split_members, str):
-        split_members = json.loads(split_members)
+    # 校验：只能修改自己创建的支出
+    current_member_id = session.get('member_id')
+    if not current_member_id:
+        return jsonify({'ok': False, 'error': '请先加入行程'})
     
     conn = get_db()
     try:
+        expense = conn.execute(
+            'SELECT * FROM expenses WHERE id = ? AND trip_id = ?',
+            (expense_id, trip_id)
+        ).fetchone()
+        if not expense:
+            return jsonify({'ok': False, 'error': '支出不存在'})
+        if expense['member_id'] != current_member_id:
+            return jsonify({'ok': False, 'error': '只能修改自己记录的支出'})
+        
+        amount = float(data.get('amount', 0))
+        category = data.get('category', expense['category'])
+        note = data.get('note', expense['note'])
+        split_type = data.get('split_type', expense['split_type'])
+        split_members = data.get('split_members', '[]')
+        expense_time = data.get('expense_time', expense['expense_time'])
+        
+        if amount <= 0:
+            return jsonify({'ok': False, 'error': '金额必须大于0'})
+        if isinstance(split_members, str):
+            split_members = json.loads(split_members)
+        
         conn.execute(
             'UPDATE expenses SET amount=?, category=?, note=?, split_type=?, split_members=?, expense_time=? WHERE id=? AND trip_id=?',
             (amount, category, note, split_type, json.dumps(split_members, ensure_ascii=False), 

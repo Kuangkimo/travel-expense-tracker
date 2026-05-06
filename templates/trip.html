@@ -165,6 +165,23 @@
                 <label>备注</label>
                 <input type="text" id="editNote" maxlength="100">
             </div>
+            <div class="form-group">
+                <label>分摊方式</label>
+                <div class="split-options">
+                    <label class="radio-label">
+                        <input type="radio" name="editSplitType" value="equal" checked> 所有人均摊
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="editSplitType" value="self"> 自己承担
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="editSplitType" value="custom"> 指定人员
+                    </label>
+                </div>
+                <div id="editCustomSplit" style="display:none; margin-top:8px;">
+                    <div id="editMemberCheckboxes" class="member-checkboxes"></div>
+                </div>
+            </div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeEditModal()">取消</button>
                 <button class="btn btn-primary" onclick="submitEditExpense()">保存修改</button>
@@ -212,6 +229,7 @@
 let currentTripId = {{ trip_id }};
 let members = [];
 let allExpenses = [];
+let currentMemberId = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     loadTripInfo();
@@ -230,6 +248,10 @@ async function loadTripInfo() {
         document.getElementById('tripNameHeader').textContent = trip.name;
         document.getElementById('shareCodeDisplay').textContent = trip.share_code;
         document.getElementById('memberCount').textContent = members.length;
+        
+        // 找到当前用户的 member_id
+        const self = members.find(m => m.is_self);
+        currentMemberId = self ? self.id : null;
         
         // 渲染成员标签
         document.getElementById('memberChips').innerHTML = members.map(m => 
@@ -298,7 +320,7 @@ async function loadExpenses() {
                         </div>
                     </div>
                     <div class="expense-actions">
-                        <button class="expense-edit" onclick="editExpense(${e.id},'${e.category}','${e.amount}','${e.note||''}','${e.split_type}','${e.payer_name}')">✎</button>
+                        ${e.member_id === currentMemberId ? `<button class="expense-edit" onclick="editExpense(${e.id},'${e.category}',${e.amount},'${(e.note||'').replace(/'/g,"\\'")}','${e.split_type}','${e.payer_name}',${e.member_id},${JSON.stringify(e.split_members||[])})">✎</button>` : ''}
                         <button class="expense-delete" onclick="deleteExpense(${e.id})">✕</button>
                     </div>
                 </div>
@@ -416,7 +438,7 @@ async function submitQuickAdd() {
     
     let splitMembers = [];
     if (splitType === 'equal') {
-        splitMembers = members.map(m => m.id);
+        splitMembers = [];
     } else {
         splitMembers = [memberId];
     }
@@ -462,7 +484,7 @@ async function deleteExpense(id) {
 // ── 编辑支出 ──
 let editingExpenseId = null;
 
-function editExpense(id, category, amount, note, splitType, payerName) {
+function editExpense(id, category, amount, note, splitType, payerName, memberId, splitMembers) {
     editingExpenseId = id;
     document.getElementById('editAmount').value = amount;
     document.getElementById('editNote').value = note;
@@ -472,7 +494,38 @@ function editExpense(id, category, amount, note, splitType, payerName) {
         b.classList.toggle('selected', b.dataset.cat === category);
     });
     
+    // 设置分摊方式
+    document.querySelectorAll('input[name="editSplitType"]').forEach(r => {
+        r.checked = r.value === splitType;
+    });
+    
+    // 自定义分摊成员复选框
+    renderEditSplitMembers(splitType, splitMembers);
+    
+    // 显示/隐藏自定义成员区
+    document.getElementById('editCustomSplit').style.display = splitType === 'custom' ? 'block' : 'none';
+    
+    // 监听分摊方式切换
+    document.querySelectorAll('input[name="editSplitType"]').forEach(r => {
+        r.onchange = function() {
+            document.getElementById('editCustomSplit').style.display = 
+                this.value === 'custom' ? 'block' : 'none';
+        };
+    });
+    
     document.getElementById('editModal').style.display = 'flex';
+}
+
+function renderEditSplitMembers(splitType, splitMembers) {
+    const container = document.getElementById('editMemberCheckboxes');
+    container.innerHTML = members.map(m => {
+        const checked = splitType === 'equal' || (splitMembers && splitMembers.includes(m.id));
+        return `
+            <label class="checkbox-label">
+                <input type="checkbox" value="${m.id}" ${checked ? 'checked' : ''}> ${m.name}
+            </label>
+        `;
+    }).join('');
 }
 
 function selectEditCat(el) {
@@ -489,16 +542,34 @@ async function submitEditExpense() {
     const amount = parseFloat(document.getElementById('editAmount').value);
     const note = document.getElementById('editNote').value.trim();
     const selectedCat = document.querySelector('#editCategoryPicker .selected');
+    const splitType = document.querySelector('input[name="editSplitType"]:checked').value;
     
     if (!amount || amount <= 0) { showToast('请输入有效金额'); return; }
     if (!selectedCat) { showToast('请选择分类'); return; }
+    
+    let splitMembers = [];
+    if (splitType === 'equal') {
+        splitMembers = [];
+    } else if (splitType === 'self') {
+        splitMembers = [];
+    } else {
+        splitMembers = Array.from(
+            document.querySelectorAll('#editMemberCheckboxes input:checked')
+        ).map(cb => parseInt(cb.value));
+        if (splitMembers.length === 0) {
+            showToast('请选择至少一人分摊');
+            return;
+        }
+    }
     
     try {
         const res = await fetch(`/api/trip/${currentTripId}/expense/${editingExpenseId}/edit`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                amount, category: selectedCat.dataset.cat, note
+                amount, category: selectedCat.dataset.cat, note,
+                split_type: splitType,
+                split_members: splitMembers
             })
         });
         const data = await res.json();
