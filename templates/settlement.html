@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+{% block title %}结算{% endblock %}
+{% block nav_title %}结算与对账{% endblock %}
+
+{% block content %}
+<div class="settle-page" data-trip-id="{{ trip_id }}">
+
+    <!-- 总览卡片 -->
+    <div id="settleSummary" class="settle-summary">
+        <div class="loading-text">加载结算数据...</div>
+    </div>
+
+    <!-- 分类统计 -->
+    <div class="section">
+        <div class="section-header">
+            <h3>📊 分类统计</h3>
+        </div>
+        <div id="categoryDetail" class="category-detail-list">
+            <div class="loading-text">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 收支平衡 -->
+    <div class="section">
+        <div class="section-header">
+            <h3>💰 收支平衡</h3>
+        </div>
+        <div id="balanceList" class="balance-list">
+            <div class="loading-text">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 结算方案 -->
+    <div class="section">
+        <div class="section-header">
+            <h3>🤝 结算方案</h3>
+            <button class="btn-sm" onclick="generateScreenshot()">📸 截图分享</button>
+        </div>
+        <div id="settlementList" class="settlement-list">
+            <div class="loading-text">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 成员支出明细 -->
+    <div class="section">
+        <div class="section-header">
+            <h3>📝 成员支出明细</h3>
+        </div>
+        <div id="memberDetail" class="member-detail-list">
+            <div class="loading-text">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 截图预览弹窗 -->
+    <div id="screenshotModal" class="modal" style="display:none;">
+        <div class="modal-backdrop" onclick="closeScreenshotModal()"></div>
+        <div class="modal-content screenshot-modal-content">
+            <div id="screenshotPreview" class="screenshot-preview">
+                <!-- 截图内容 -->
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="downloadScreenshot()">📥 保存截图</button>
+                <button class="btn btn-secondary" onclick="closeScreenshotModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let currentTripId = {{ trip_id }};
+let settlementData = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadSettlement();
+});
+
+async function loadSettlement() {
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/settlement`);
+        const data = await res.json();
+        if (!data.ok) { showToast('加载失败'); return; }
+        
+        settlementData = data;
+        renderSummary(data);
+        renderCategoryDetail(data);
+        renderBalances(data);
+        renderSettlements(data);
+        renderMemberDetail(data);
+    } catch(e) {
+        showToast('加载结算数据失败');
+    }
+}
+
+function renderSummary(data) {
+    document.getElementById('settleSummary').innerHTML = `
+        <div class="summary-grid">
+            <div class="summary-item">
+                <span class="summary-label">总花费</span>
+                <span class="summary-value primary">¥${data.total.toFixed(2)}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">参与人数</span>
+                <span class="summary-value">${data.member_count}人</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">人均</span>
+                <span class="summary-value">¥${data.per_person.toFixed(2)}</span>
+            </div>
+        </div>
+    `;
+}
+
+function renderCategoryDetail(data) {
+    const cats = ['餐饮', '交通', '住宿', '门票', '购物', '酒水/娱乐', '其他'];
+    const icons = {'餐饮':'🍽️','交通':'🚗','住宿':'🏠','门票':'🎫','购物':'🛍️','酒水/娱乐':'🍻','其他':'📌'};
+    const container = document.getElementById('categoryDetail');
+    
+    if (Object.keys(data.category_totals).length === 0) {
+        container.innerHTML = '<div class="empty-hint">暂无数据</div>';
+        return;
+    }
+    
+    const total = data.total;
+    container.innerHTML = cats.map(cat => {
+        const amount = data.category_totals[cat] || 0;
+        const pct = total > 0 ? (amount / total * 100) : 0;
+        if (amount === 0) return '';
+        return `
+            <div class="cat-detail-row">
+                <div class="cat-detail-left">
+                    <span class="cat-detail-icon">${icons[cat] || '📌'}</span>
+                    <span class="cat-detail-name">${cat}</span>
+                </div>
+                <div class="cat-detail-right">
+                    <div class="cat-detail-bar-track">
+                        <div class="cat-detail-bar-fill" style="width:${pct}%"></div>
+                    </div>
+                    <span class="cat-detail-amount">¥${amount.toFixed(2)}</span>
+                    <span class="cat-detail-pct">${pct.toFixed(1)}%</span>
+                </div>
+            </div>
+        `;
+    }).filter(Boolean).join('');
+}
+
+function renderBalances(data) {
+    const container = document.getElementById('balanceList');
+    const balances = Object.values(data.balances);
+    
+    container.innerHTML = balances.map(b => {
+        const isPositive = b.balance > 0;
+        const isZero = Math.abs(b.balance) < 0.01;
+        return `
+            <div class="balance-card ${isZero ? 'zero' : isPositive ? 'positive' : 'negative'}">
+                <div class="balance-info">
+                    <span class="balance-name">${b.name}</span>
+                    <div class="balance-detail">
+                        <span>付了 ¥${b.paid.toFixed(2)}</span>
+                        <span>· 应付 ¥${b.should_pay.toFixed(2)}</span>
+                    </div>
+                </div>
+                <div class="balance-result">
+                    ${isZero ? '✅ 平了' : isPositive ? `💰 应收 ¥${b.balance.toFixed(2)}` : `💸 应付 ¥${(-b.balance).toFixed(2)}`}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderSettlements(data) {
+    const container = document.getElementById('settlementList');
+    
+    if (data.settlements.length === 0) {
+        const allZero = Object.values(data.balances).every(b => Math.abs(b.balance) < 0.01);
+        container.innerHTML = allZero 
+            ? '<div class="settle-done">🎉 账目已平，无需结算！</div>'
+            : '<div class="empty-hint">无需结算</div>';
+        return;
+    }
+    
+    container.innerHTML = data.settlements.map(s => `
+        <div class="settle-item">
+            <span class="settle-from">${s.from_name}</span>
+            <span class="settle-arrow">→ 💰 →</span>
+            <span class="settle-to">${s.to_name}</span>
+            <span class="settle-amount">¥${s.amount.toFixed(2)}</span>
+        </div>
+    `).join('');
+}
+
+function renderMemberDetail(data) {
+    const container = document.getElementById('memberDetail');
+    
+    const memberExpenses = data.member_expenses;
+    if (!memberExpenses || Object.keys(memberExpenses).length === 0) {
+        container.innerHTML = '<div class="empty-hint">暂无数据</div>';
+        return;
+    }
+    
+    container.innerHTML = Object.entries(memberExpenses).map(([mid, m]) => {
+        const total = m.expenses.reduce((s, e) => s + e.amount, 0);
+        const catSummary = {};
+        m.expenses.forEach(e => {
+            catSummary[e.category] = (catSummary[e.category] || 0) + e.amount;
+        });
+        
+        const catStr = Object.entries(catSummary)
+            .map(([c, a]) => `${c}:¥${a.toFixed(2)}`)
+            .join(' · ');
+        
+        return `
+            <div class="member-detail-card">
+                <div class="member-detail-header">
+                    <span class="member-detail-name">${m.name}</span>
+                    <span class="member-detail-total">总支出: ¥${total.toFixed(2)}</span>
+                </div>
+                ${catStr ? `<div class="member-detail-cats">${catStr}</div>` : ''}
+                <div class="member-detail-expenses">
+                    ${m.expenses.map(e => `
+                        <div class="member-expense-item">
+                            <span class="expense-cat-tag">${e.category}</span>
+                            <span class="expense-note-text">${e.note || '（无备注）'}</span>
+                            <span class="expense-amount-text">¥${e.amount.toFixed(2)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ── 截图生成 ──
+function generateScreenshot() {
+    if (!settlementData) return;
+    
+    const container = document.getElementById('screenshotPreview');
+    const data = settlementData;
+    const cats = ['餐饮', '交通', '住宿', '门票', '购物', '酒水/娱乐', '其他'];
+    const icons = {'餐饮':'🍽️','交通':'🚗','住宿':'🏠','门票':'🎫','购物':'🛍️','酒水/娱乐':'🍻','其他':'📌'};
+    
+    let catBars = '';
+    if (Object.keys(data.category_totals).length > 0) {
+        const total = data.total;
+        catBars = cats.map(cat => {
+            const amt = data.category_totals[cat] || 0;
+            const pct = total > 0 ? (amt / total * 100) : 0;
+            if (amt === 0) return '';
+            return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;">
+                <span>${icons[cat] || '📌'} ${cat}</span>
+                <span style="font-weight:600;">¥${amt.toFixed(2)} (${pct.toFixed(1)}%)</span>
+            </div>`;
+        }).filter(Boolean).join('');
+    }
+    
+    let settleText = '';
+    if (data.settlements.length > 0) {
+        settleText = data.settlements.map(s => 
+            `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #eee;">
+                <span>${s.from_name} → ${s.to_name}</span>
+                <span style="font-weight:700;color:#E74C3C;">¥${s.amount.toFixed(2)}</span>
+            </div>`
+        ).join('');
+    } else {
+        settleText = '<div style="text-align:center;color:#999;padding:12px;">🎉 账目已平，无需结算</div>';
+    }
+    
+    container.innerHTML = `
+        <div style="background:white;border-radius:16px;padding:24px;max-width:420px;margin:0 auto;font-family:'PingFang SC','Microsoft YaHei',sans-serif;color:#333;">
+            <!-- Header -->
+            <div style="text-align:center;margin-bottom:20px;">
+                <div style="font-size:32px;margin-bottom:4px;">🧾</div>
+                <div style="font-size:18px;font-weight:700;">行程账单</div>
+                <div style="font-size:13px;color:#999;">${data.member_count}人 · 共${Object.values(data.member_expenses).reduce((s,m) => s + m.expenses.length, 0)}笔</div>
+            </div>
+            
+            <!-- Total -->
+            <div style="text-align:center;margin-bottom:20px;padding:16px;background:#F8F9FA;border-radius:12px;">
+                <div style="font-size:13px;color:#666;">总花费</div>
+                <div style="font-size:36px;font-weight:700;color:#007AFF;">¥${data.total.toFixed(2)}</div>
+                <div style="font-size:13px;color:#999;">人均 ¥${data.per_person.toFixed(2)}</div>
+            </div>
+            
+            <!-- Categories -->
+            <div style="margin-bottom:16px;">
+                <div style="font-size:14px;font-weight:600;margin-bottom:8px;">📊 分类统计</div>
+                ${catBars}
+            </div>
+            
+            <!-- Settlement -->
+            <div style="margin-bottom:16px;">
+                <div style="font-size:14px;font-weight:600;margin-bottom:8px;">🤝 结算方案</div>
+                ${settleText}
+            </div>
+            
+            <!-- Footer -->
+            <div style="text-align:center;font-size:11px;color:#ccc;margin-top:16px;padding-top:12px;border-top:1px solid #eee;">
+                由「出游账本」自动生成
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('screenshotModal').style.display = 'flex';
+}
+
+async function downloadScreenshot() {
+    const preview = document.getElementById('screenshotPreview');
+    
+    // 使用html2canvas
+    if (typeof html2canvas !== 'undefined') {
+        try {
+            const canvas = await html2canvas(preview.firstElementChild, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                logging: false
+            });
+            
+            const link = document.createElement('a');
+            link.download = 'travel-bill.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            showToast('✅ 截图已保存');
+        } catch(e) {
+            // fallback: 直接复制内容
+            fallbackCopy();
+        }
+    } else {
+        // 如果没有html2canvas，用简单的转发方式
+        showToast('正在加载截图库...');
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        script.onload = () => setTimeout(downloadScreenshot, 500);
+        document.head.appendChild(script);
+    }
+}
+
+function fallbackCopy() {
+    // 最简单的fallback - 复制文本到剪贴板
+    if (!settlementData) return;
+    let text = `🧾 行程账单\n`;
+    text += `总花费: ¥${settlementData.total.toFixed(2)} | ${settlementData.member_count}人\n`;
+    text += `人均: ¥${settlementData.per_person.toFixed(2)}\n\n`;
+    text += `分类:\n`;
+    for (const [cat, amt] of Object.entries(settlementData.category_totals)) {
+        text += `  ${cat}: ¥${amt.toFixed(2)}\n`;
+    }
+    text += `\n结算:\n`;
+    for (const s of settlementData.settlements) {
+        text += `  ${s.from_name} → ${s.to_name}: ¥${s.amount.toFixed(2)}\n`;
+    }
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('✅ 账单文本已复制到剪贴板');
+        });
+    } else {
+        showToast('✅ 请手动截图保存');
+    }
+}
+
+function closeScreenshotModal() {
+    document.getElementById('screenshotModal').style.display = 'none';
+}
+
+function goBack() {
+    window.location = `/trip/${currentTripId}`;
+}
+
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+{% endblock %}

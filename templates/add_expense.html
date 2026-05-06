@@ -1,0 +1,433 @@
+{% extends "base.html" %}
+{% block title %}添加支出{% endblock %}
+{% block nav_title %}添加支出{% endblock %}
+
+{% block content %}
+<div class="add-page" data-trip-id="{{ trip_id }}">
+
+    <!-- 方式选择 -->
+    <div class="input-mode-toggle">
+        <button class="mode-btn active" id="modeManual" onclick="switchMode('manual')">
+            ✏️ 手动输入
+        </button>
+        <button class="mode-btn" id="modeOCR" onclick="switchMode('ocr')">
+            📷 截图识别
+        </button>
+    </div>
+
+    <!-- 手动输入表单 -->
+    <div id="manualForm" class="form-card">
+        <div class="form-group">
+            <label>金额 (¥) <span class="required">*</span></label>
+            <input type="number" id="expAmount" placeholder="0.00" step="0.01" min="0" inputmode="decimal" autofocus>
+        </div>
+
+        <div class="form-group">
+            <label>分类 <span class="required">*</span></label>
+            <div class="category-picker" id="categoryPicker">
+                {% for cat in categories %}
+                <button class="cat-option" data-cat="{{ cat }}" onclick="selectCategory(this)">
+                    {{ icons[cat] }} {{ cat }}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>备注</label>
+            <input type="text" id="expNote" placeholder="例如：海底捞火锅" maxlength="100">
+        </div>
+
+        <div class="form-group">
+            <label>付款人</label>
+            <select id="expPayer" class="filter-select"></select>
+        </div>
+
+        <div class="form-group">
+            <label>分摊方式</label>
+            <div class="split-options">
+                <label class="radio-label">
+                    <input type="radio" name="splitType" value="equal" checked> 所有人均摊
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="splitType" value="self"> 自己承担
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="splitType" value="custom"> 指定人员
+                </label>
+            </div>
+            <div id="customSplitMembers" style="display:none; margin-top:8px;">
+                <div id="memberCheckboxes" class="member-checkboxes"></div>
+            </div>
+        </div>
+
+        <button class="btn btn-primary btn-full btn-big" onclick="submitExpense()">
+            ✅ 确认添加
+        </button>
+    </div>
+
+    <!-- OCR识别 -->
+    <div id="ocrForm" class="form-card" style="display:none;">
+        <h3>📷 截图识别</h3>
+        <p class="form-hint">上传支付截图或小票照片，自动提取金额和备注</p>
+        
+        <div class="ocr-upload-zone" id="ocrDropZone">
+            <div class="ocr-upload-icon">📸</div>
+            <div class="ocr-upload-text">点击拍照或选择图片</div>
+            <div class="ocr-upload-hint">支持支付截图、收据、小票</div>
+            <input type="file" id="ocrFileInput" accept="image/*" capture="environment" style="display:none;" onchange="handleOCRFile(this)">
+        </div>
+
+        <div id="ocrLoading" style="display:none;" class="ocr-loading">
+            <div class="spinner"></div>
+            <span>正在识别图片中的金额...</span>
+        </div>
+
+        <div id="ocrResult" style="display:none;">
+            <div class="ocr-result-card">
+                <h4>识别结果</h4>
+                <div class="form-group">
+                    <label>识别到的金额</label>
+                    <input type="number" id="ocrAmount" placeholder="0.00" step="0.01" inputmode="decimal">
+                </div>
+                <div class="form-group">
+                    <label>自动判断分类</label>
+                    <div class="category-picker" id="ocrCategoryPicker">
+                        {% for cat in categories %}
+                        <button class="cat-option" data-cat="{{ cat }}" onclick="selectOCRCat(this)">
+                            {{ icons[cat] }} {{ cat }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>备注</label>
+                    <input type="text" id="ocrNote" placeholder="自动提取或手动修改" maxlength="100">
+                </div>
+                <div class="form-group">
+                    <label>原始识别文本</label>
+                    <pre id="ocrRawText" class="ocr-raw"></pre>
+                </div>
+                <button class="btn btn-primary btn-full" onclick="submitOCRExpense()">
+                    ✅ 确认添加
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最近添加提示 -->
+    <div id="recentAddHint" class="success-card" style="display:none;">
+        <div class="success-icon">✅</div>
+        <div class="success-text" id="successText">已添加</div>
+        <button class="btn btn-secondary" onclick="resetForm()">继续添加</button>
+        <button class="btn btn-primary" onclick="goToTrip()">查看行程</button>
+    </div>
+
+</div>
+
+<script>
+let currentTripId = {{ trip_id }};
+let members = [];
+let selectedCategory = '';
+let selectedOCRCat = '';
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadMembers();
+});
+
+async function loadMembers() {
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/members`);
+        const data = await res.json();
+        if (!data.ok) return;
+        members = data.members;
+        
+        // 填充付款人下拉
+        const payerSelect = document.getElementById('expPayer');
+        payerSelect.innerHTML = members.map(m => 
+            `<option value="${m.id}">${m.is_self ? '👤 ' : ''}${m.name}</option>`
+        ).join('');
+        
+        // 填充指定分摊的复选框
+        const checkboxes = document.getElementById('memberCheckboxes');
+        checkboxes.innerHTML = members.map(m => `
+            <label class="checkbox-label">
+                <input type="checkbox" value="${m.id}" checked> ${m.name}
+            </label>
+        `).join('');
+        
+        // 监听分摊方式变化
+        document.querySelectorAll('input[name="splitType"]').forEach(r => {
+            r.addEventListener('change', function() {
+                document.getElementById('customSplitMembers').style.display = 
+                    this.value === 'custom' ? 'block' : 'none';
+            });
+        });
+    } catch(e) {
+        showToast('加载成员失败');
+    }
+}
+
+// ── 录入方式切换 ──
+function switchMode(mode) {
+    document.getElementById('modeManual').classList.toggle('active', mode === 'manual');
+    document.getElementById('modeOCR').classList.toggle('active', mode === 'ocr');
+    document.getElementById('manualForm').style.display = mode === 'manual' ? 'block' : 'none';
+    document.getElementById('ocrForm').style.display = mode === 'ocr' ? 'block' : 'none';
+    
+    if (mode === 'manual') {
+        document.getElementById('expAmount').focus();
+    }
+}
+
+// ── 分类选择 ──
+function selectCategory(el) {
+    document.querySelectorAll('#categoryPicker .cat-option').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedCategory = el.dataset.cat;
+}
+
+function selectOCRCat(el) {
+    document.querySelectorAll('#ocrCategoryPicker .cat-option').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedOCRCat = el.dataset.cat;
+}
+
+// ── 手动提交 ──
+async function submitExpense() {
+    const amount = parseFloat(document.getElementById('expAmount').value);
+    const note = document.getElementById('expNote').value.trim();
+    const memberId = parseInt(document.getElementById('expPayer').value);
+    const splitType = document.querySelector('input[name="splitType"]:checked').value;
+    
+    if (!amount || amount <= 0) {
+        showToast('请输入有效金额');
+        document.getElementById('expAmount').focus();
+        return;
+    }
+    
+    if (!selectedCategory) {
+        showToast('请选择分类');
+        return;
+    }
+    
+    let splitMembers = [];
+    if (splitType === 'equal') {
+        splitMembers = members.map(m => m.id);
+    } else if (splitType === 'self') {
+        splitMembers = [memberId];
+    } else {
+        splitMembers = Array.from(
+            document.querySelectorAll('#memberCheckboxes input:checked')
+        ).map(cb => parseInt(cb.value));
+        if (splitMembers.length === 0) {
+            showToast('请选择至少一人分摊');
+            return;
+        }
+    }
+    
+    const btn = document.querySelector('#manualForm .btn-primary');
+    btn.disabled = true;
+    btn.textContent = '添加中...';
+    
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/expense/add`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                amount, category: selectedCategory, note,
+                member_id: memberId,
+                split_type: splitType,
+                split_members: splitMembers
+            })
+        });
+        const data = await res.json();
+        
+        if (data.ok) {
+            showSuccess(`✅ ¥${amount.toFixed(2)} ${selectedCategory} - ${data.paid_by}`);
+        } else {
+            showToast(data.error || '添加失败');
+        }
+    } catch(e) {
+        showToast('网络错误');
+    }
+    
+    btn.disabled = false;
+    btn.textContent = '✅ 确认添加';
+}
+
+// ── OCR处理 ──
+function handleOCRFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    document.getElementById('ocrLoading').style.display = 'flex';
+    document.getElementById('ocrResult').style.display = 'none';
+    document.getElementById('ocrDropZone').style.display = 'none';
+    
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    fetch('/api/ocr', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById('ocrLoading').style.display = 'none';
+        
+        if (data.ok) {
+            const parsed = data.parsed;
+            document.getElementById('ocrAmount').value = parsed.amount || '';
+            document.getElementById('ocrNote').value = parsed.note || '';
+            document.getElementById('ocrRawText').textContent = data.ocr_text || '无识别文本';
+            
+            // 自动选中分类
+            if (parsed.category) {
+                selectedOCRCat = parsed.category;
+                document.querySelectorAll('#ocrCategoryPicker .cat-option').forEach(b => {
+                    b.classList.toggle('selected', b.dataset.cat === parsed.category);
+                });
+            }
+            
+            // 自动选第一个分类
+            if (!selectedOCRCat) {
+                const first = document.querySelector('#ocrCategoryPicker .cat-option');
+                if (first) {
+                    first.classList.add('selected');
+                    selectedOCRCat = first.dataset.cat;
+                }
+            }
+            
+            document.getElementById('ocrResult').style.display = 'block';
+        } else {
+            showToast(data.error || '识别失败，请手动输入');
+            resetOCR();
+        }
+    })
+    .catch(() => {
+        document.getElementById('ocrLoading').style.display = 'none';
+        showToast('识别失败，请手动输入');
+        resetOCR();
+    });
+}
+
+function resetOCR() {
+    document.getElementById('ocrDropZone').style.display = 'block';
+    document.getElementById('ocrLoading').style.display = 'none';
+    document.getElementById('ocrResult').style.display = 'none';
+    document.getElementById('ocrFileInput').value = '';
+}
+
+// 点击上传区域触发文件选择
+document.getElementById('ocrDropZone').addEventListener('click', function() {
+    document.getElementById('ocrFileInput').click();
+});
+
+// 拖拽上传
+const dropZone = document.getElementById('ocrDropZone');
+dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#007AFF';
+    this.style.background = '#E8F0FE';
+});
+dropZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#ddd';
+    this.style.background = '';
+});
+dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#ddd';
+    this.style.background = '';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+        document.getElementById('ocrFileInput').files = e.dataTransfer.files;
+        handleOCRFile(document.getElementById('ocrFileInput'));
+    } else {
+        showToast('请拖入图片文件');
+    }
+});
+
+async function submitOCRExpense() {
+    const amount = parseFloat(document.getElementById('ocrAmount').value);
+    const note = document.getElementById('ocrNote').value.trim();
+    const memberId = parseInt(document.getElementById('expPayer').value);
+    
+    if (!amount || amount <= 0) {
+        showToast('请输入有效金额');
+        return;
+    }
+    
+    if (!selectedOCRCat) {
+        showToast('请选择分类');
+        return;
+    }
+    
+    const btn = document.querySelector('#ocrResult .btn-primary');
+    btn.disabled = true;
+    btn.textContent = '添加中...';
+    
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/expense/add`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                amount, category: selectedOCRCat, note,
+                member_id: memberId,
+                split_type: 'equal',
+                split_members: members.map(m => m.id)
+            })
+        });
+        const data = await res.json();
+        
+        if (data.ok) {
+            showSuccess(`✅ ¥${amount.toFixed(2)} ${selectedOCRCat} - ${data.paid_by}`);
+        } else {
+            showToast(data.error || '添加失败');
+        }
+    } catch(e) {
+        showToast('网络错误');
+    }
+    
+    btn.disabled = false;
+    btn.textContent = '✅ 确认添加';
+}
+
+// ── 成功提示 ──
+function showSuccess(text) {
+    document.getElementById('manualForm').style.display = 'none';
+    document.getElementById('ocrForm').style.display = 'none';
+    document.getElementById('recentAddHint').style.display = 'block';
+    document.getElementById('successText').textContent = text;
+}
+
+function resetForm() {
+    document.getElementById('expAmount').value = '';
+    document.getElementById('expNote').value = '';
+    document.querySelectorAll('#categoryPicker .cat-option').forEach(b => b.classList.remove('selected'));
+    selectedCategory = '';
+    
+    document.getElementById('recentAddHint').style.display = 'none';
+    document.getElementById('manualForm').style.display = 'block';
+    resetOCR();
+    switchMode('manual');
+}
+
+function goToTrip() {
+    window.location = `/trip/${currentTripId}`;
+}
+
+function goBack() {
+    window.location = `/trip/${currentTripId}`;
+}
+
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+{% endblock %}

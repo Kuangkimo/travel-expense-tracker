@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+{% block title %}数据同步{% endblock %}
+{% block nav_title %}多人同步{% endblock %}
+
+{% block content %}
+<div class="sync-page" data-trip-id="{{ trip_id }}">
+
+    <div class="sync-intro">
+        <div class="sync-intro-icon">🔄</div>
+        <h3>多人对账</h3>
+        <p class="form-hint">各自记录自己的支出，导出数据后分享给别人导入，即可合并查看所有人账单</p>
+    </div>
+
+    <!-- 连接方式选择 -->
+    <div class="card" onclick="showNetworkInfo()">
+        <div class="card-icon">🌐</div>
+        <div class="card-body">
+            <h3>同WiFi直连</h3>
+            <p>在同一网络下，直接用浏览器访问地址</p>
+        </div>
+        <div class="card-arrow">→</div>
+    </div>
+    <div id="networkInfo" class="form-card" style="display:none;">
+        <h3>🌐 同WiFi连接方式</h3>
+        <p class="form-hint">确保手机和电脑连同一个WiFi，手机浏览器打开以下地址：</p>
+        <div class="network-url-box" id="lanUrlBox">
+            <div class="loading-text">获取地址中...</div>
+        </div>
+        <p class="form-hint">同伴打开这个地址后，输入共享码即可加入行程</p>
+        <p class="form-hint" style="color:#FF9500;">⚠️ 不同网络/异地时，请使用下方的「导入导出」方式同步</p>
+    </div>
+
+    <!-- 步骤说明 -->
+    <div class="steps-card">
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">各自在手机上记录自己的支出</div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">点击「导出数据」生成自己的账单</div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text">分享导出的数据给其他人</div>
+        </div>
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-text">点击「导入数据」合并其他人的账单</div>
+        </div>
+    </div>
+
+    <!-- 导出 -->
+    <div class="card" onclick="exportData()" id="exportCard">
+        <div class="card-icon">📤</div>
+        <div class="card-body">
+            <h3>导出我的数据</h3>
+            <p>生成你的支出账单数据，分享给同伴</p>
+        </div>
+        <div class="card-arrow">→</div>
+    </div>
+
+    <!-- 导入 -->
+    <div class="card" onclick="showImportForm()">
+        <div class="card-icon">📥</div>
+        <div class="card-body">
+            <h3>导入同伴数据</h3>
+            <p>粘贴对方导出的账单数据，合并到账本</p>
+        </div>
+        <div class="card-arrow">→</div>
+    </div>
+
+    <!-- 导入表单 -->
+    <div id="importForm" class="form-card" style="display:none;">
+        <h3>📥 导入数据</h3>
+        <p class="form-hint">请对方导出数据后，把导出的JSON文本复制到这里</p>
+        <div class="form-group">
+            <label>粘贴JSON数据</label>
+            <textarea id="importData" rows="8" placeholder="在此粘贴导出的JSON数据..." style="width:100%;border:1px solid #ddd;border-radius:8px;padding:12px;font-size:14px;font-family:monospace;"></textarea>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="importData()">开始导入</button>
+    </div>
+
+    <!-- 导入结果 -->
+    <div id="importResult" class="import-result" style="display:none;">
+        <!-- 由JS填充 -->
+    </div>
+
+    <!-- 合并后对账 -->
+    <div class="section">
+        <div class="section-header">
+            <h3>📊 合并对账</h3>
+            <button class="btn-sm" onclick="loadReconcile()">刷新</button>
+        </div>
+        <div id="reconcileResult" class="reconcile-list">
+            <div class="loading-text">点击下方按钮查看合并结果</div>
+        </div>
+        <button class="btn btn-secondary btn-full" onclick="loadReconcile()" style="margin-top:12px;">
+            🔄 刷新合并数据
+        </button>
+    </div>
+
+    <!-- 导出预览弹窗 -->
+    <div id="exportModal" class="modal" style="display:none;">
+        <div class="modal-backdrop" onclick="closeExportModal()"></div>
+        <div class="modal-content">
+            <h3>📤 导出成功</h3>
+            <p class="form-hint">复制下面的数据，发送给同伴。对方在「导入数据」中粘贴即可</p>
+            <div class="export-json-box">
+                <textarea id="exportJson" rows="8" readonly style="width:100%;border:1px solid #ddd;border-radius:8px;padding:12px;font-size:11px;font-family:monospace;background:#F5F5F5;"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="copyExportJson()">📋 复制数据</button>
+                <button class="btn btn-secondary" onclick="closeExportModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let currentTripId = {{ trip_id }};
+
+// ── 网络信息 ──
+async function showNetworkInfo() {
+    const box = document.getElementById('networkInfo');
+    const urlBox = document.getElementById('lanUrlBox');
+    const isVisible = box.style.display === 'block';
+    
+    box.style.display = isVisible ? 'none' : 'block';
+    
+    if (!isVisible) {
+        urlBox.innerHTML = '<div class="loading-text">获取地址中...</div>';
+        try {
+            const res = await fetch('/api/network');
+            const data = await res.json();
+            if (data.ok) {
+                urlBox.innerHTML = `
+                    <div style="background:var(--primary-light);border-radius:12px;padding:16px;text-align:center;margin:12px 0;">
+                        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">📱 手机浏览器打开</div>
+                        <div style="font-size:20px;font-weight:700;color:var(--primary);letter-spacing:1px;word-break:break-all;" 
+                             onclick="copyText('${data.lan_url}')">${data.lan_url}</div>
+                        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">点击地址复制</div>
+                    </div>
+                    <div style="background:#F5F5F5;border-radius:8px;padding:10px;font-size:12px;color:var(--text-secondary);">
+                        💡 必须在同一个WiFi下才能访问<br>
+                        💡 朋友加入后输入共享码即可<br>
+                        💡 不同网络时用下方的导出导入功能
+                    </div>
+                `;
+            }
+        } catch(e) {
+            urlBox.innerHTML = '<div style="color:var(--danger);text-align:center;padding:12px;">获取网络地址失败，请手动输入电脑IP:5000</div>';
+        }
+    }
+}
+
+function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => showToast('✅ 地址已复制'));
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('✅ 地址已复制');
+    }
+}
+
+// ── 导出 ──
+async function exportData() {
+    const card = document.getElementById('exportCard');
+    card.innerHTML = '<div style="text-align:center;padding:20px;">导出中...</div>';
+    
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/sync/export`);
+        const data = await res.json();
+        
+        if (data.ok) {
+            document.getElementById('exportJson').value = JSON.stringify(data.data, null, 2);
+            document.getElementById('exportModal').style.display = 'flex';
+        } else {
+            showToast(data.error || '导出失败');
+        }
+    } catch(e) {
+        showToast('网络错误');
+    }
+    
+    card.innerHTML = `
+        <div class="card-icon">📤</div>
+        <div class="card-body">
+            <h3>导出我的数据</h3>
+            <p>生成你的支出账单数据，分享给同伴</p>
+        </div>
+        <div class="card-arrow">→</div>
+    `;
+}
+
+function copyExportJson() {
+    const textarea = document.getElementById('exportJson');
+    textarea.select();
+    textarea.setSelectionRange(0, 99999);
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textarea.value).then(() => {
+            showToast('✅ 已复制到剪贴板');
+        });
+    } else {
+        document.execCommand('copy');
+        showToast('✅ 已复制到剪贴板');
+    }
+}
+
+function closeExportModal() {
+    document.getElementById('exportModal').style.display = 'none';
+}
+
+// ── 导入 ──
+function showImportForm() {
+    document.getElementById('importForm').style.display = 'block';
+}
+
+async function importData() {
+    const raw = document.getElementById('importData').value.trim();
+    if (!raw) {
+        showToast('请粘贴要导入的数据');
+        return;
+    }
+    
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    } catch(e) {
+        showToast('JSON格式无效，请检查');
+        return;
+    }
+    
+    const btn = document.querySelector('#importForm .btn');
+    btn.disabled = true;
+    btn.textContent = '导入中...';
+    
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/sync/import`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({data: parsed})
+        });
+        const result = await res.json();
+        
+        if (result.ok) {
+            document.getElementById('importForm').style.display = 'none';
+            document.getElementById('importResult').style.display = 'block';
+            document.getElementById('importResult').innerHTML = `
+                <div class="success-card">
+                    <div class="success-icon">✅</div>
+                    <div class="success-text">
+                        <strong>${result.member_name}</strong> 的 ${result.imported} 笔账单已导入！
+                    </div>
+                    <button class="btn btn-primary" onclick="loadReconcile()">查看合并结果</button>
+                </div>
+            `;
+            showToast(`✅ 已导入 ${result.member_name} 的 ${result.imported} 笔账单`);
+        } else {
+            showToast(result.error || '导入失败');
+        }
+    } catch(e) {
+        showToast('网络错误');
+    }
+    
+    btn.disabled = false;
+    btn.textContent = '开始导入';
+}
+
+// ── 合并对账 ──
+async function loadReconcile() {
+    const container = document.getElementById('reconcileResult');
+    container.innerHTML = '<div class="loading-text">加载中...</div>';
+    
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/sync/reconcile`);
+        const data = await res.json();
+        
+        if (!data.ok) { showToast('加载失败'); return; }
+        
+        const members = data.members;
+        const entries = Object.values(members);
+        
+        if (entries.length === 0) {
+            container.innerHTML = '<div class="empty-hint">暂无数据</div>';
+            return;
+        }
+        
+        container.innerHTML = `
+            <div class="reconcile-summary">
+                <div class="summary-item">
+                    <span class="summary-label">总花费</span>
+                    <span class="summary-value primary">¥${data.overall_total.toFixed(2)}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">参与人</span>
+                    <span class="summary-value">${entries.length}人</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">平均每人</span>
+                    <span class="summary-value">¥${(data.overall_total / entries.length).toFixed(2)}</span>
+                </div>
+            </div>
+            ${entries.map(m => `
+                <div class="reconcile-member-card">
+                    <div class="reconcile-member-header">
+                        <span class="reconcile-member-name">${m.name}</span>
+                        <span class="reconcile-member-total">¥${m.total.toFixed(2)}</span>
+                    </div>
+                    <div class="reconcile-expenses">
+                        ${m.expenses.map(e => `
+                            <div class="reconcile-expense-item">
+                                <span class="expense-cat-tag">${e.category}</span>
+                                <span class="expense-note-text">${e.note || '（无备注）'}</span>
+                                <span class="expense-amount-text">¥${e.amount.toFixed(2)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('')}
+        `;
+    } catch(e) {
+        container.innerHTML = '<div class="empty-hint">加载失败，请重试</div>';
+    }
+}
+
+function goBack() {
+    window.location = `/trip/${currentTripId}`;
+}
+
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+{% endblock %}

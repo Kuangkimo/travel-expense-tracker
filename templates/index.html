@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}出游账本 - 首页{% endblock %}
+
+{% block content %}
+<div class="home-page">
+    <div class="logo-area">
+        <div class="logo-icon">🧾</div>
+        <h1 class="app-title">出游账本</h1>
+        <p class="app-desc">无感记录 · 自动算账 · 多人同步</p>
+    </div>
+
+    <div class="card-list">
+        <!-- 创建行程 -->
+        <div class="card card-primary" onclick="showCreateForm()">
+            <div class="card-icon">✨</div>
+            <div class="card-body">
+                <h3>创建新行程</h3>
+                <p>新建一个旅行账本，邀请好友加入</p>
+            </div>
+            <div class="card-arrow">→</div>
+        </div>
+
+        <!-- 加入行程 -->
+        <div class="card" onclick="showJoinForm()">
+            <div class="card-icon">🔗</div>
+            <div class="card-body">
+                <h3>加入已有行程</h3>
+                <p>输入共享码，加入朋友的账本</p>
+            </div>
+            <div class="card-arrow">→</div>
+        </div>
+    </div>
+
+    <!-- 创建表单 -->
+    <div id="createForm" class="form-card" style="display:none;">
+        <h3>✏️ 创建新行程</h3>
+        <div class="form-group">
+            <label>行程名称</label>
+            <input type="text" id="tripName" placeholder="例如：五一广州之旅" maxlength="50">
+        </div>
+        <div class="form-group">
+            <label>你的名字</label>
+            <input type="text" id="myName" placeholder="例如：小明" maxlength="20" value="我">
+        </div>
+        <button class="btn btn-primary btn-full" onclick="createTrip()">创建行程</button>
+        <p class="form-hint">创建后将自动生成共享码，发给同伴即可加入</p>
+    </div>
+
+    <!-- 加入表单 -->
+    <div id="joinForm" class="form-card" style="display:none;">
+        <h3>🔗 加入行程</h3>
+        <div class="form-group">
+            <label>共享码</label>
+            <input type="text" id="shareCode" placeholder="6位共享码" maxlength="6" style="text-transform:uppercase; letter-spacing:4px; font-size:1.3em; text-align:center;">
+        </div>
+        <div class="form-group">
+            <label>你的名字</label>
+            <input type="text" id="joinName" placeholder="例如：小红" maxlength="20">
+        </div>
+        <button class="btn btn-primary btn-full" onclick="joinTrip()">加入行程</button>
+    </div>
+
+    <!-- 历史行程（从localstorage读取） -->
+    <div id="recentTrips" class="recent-list" style="display:none;">
+        <h3>📋 最近行程</h3>
+        <div id="recentTripsList"></div>
+    </div>
+</div>
+
+<script>
+// 从sessionStorage获取最近行程
+document.addEventListener('DOMContentLoaded', function() {
+    const recent = JSON.parse(sessionStorage.getItem('recentTrips') || '[]');
+    if (recent.length > 0) {
+        document.getElementById('recentTrips').style.display = 'block';
+        const list = document.getElementById('recentTripsList');
+        list.innerHTML = recent.map(t => `
+            <div class="recent-item" onclick="window.location='/trip/${t.id}'">
+                <span class="recent-name">${t.name}</span>
+                <span class="recent-code">${t.code}</span>
+            </div>
+        `).join('');
+    }
+});
+
+function showCreateForm() {
+    document.getElementById('createForm').style.display = 'block';
+    document.getElementById('joinForm').style.display = 'none';
+    document.getElementById('tripName').focus();
+}
+
+function showJoinForm() {
+    document.getElementById('joinForm').style.display = 'block';
+    document.getElementById('createForm').style.display = 'none';
+    document.getElementById('shareCode').focus();
+}
+
+async function createTrip() {
+    const name = document.getElementById('tripName').value.trim() || '我的旅行';
+    const memberName = document.getElementById('myName').value.trim() || '我';
+    
+    const btn = document.querySelector('#createForm .btn');
+    btn.disabled = true;
+    btn.textContent = '创建中...';
+    
+    try {
+        const res = await fetch('/api/trip/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name, member_name: memberName})
+        });
+        const data = await res.json();
+        
+        if (data.ok) {
+            // 保存到最近行程
+            const recent = JSON.parse(sessionStorage.getItem('recentTrips') || '[]');
+            recent.unshift({id: data.trip_id, name, code: data.share_code});
+            sessionStorage.setItem('recentTrips', JSON.stringify(recent.slice(0, 10)));
+            
+            window.location = `/trip/${data.trip_id}`;
+        } else {
+            showToast(data.error || '创建失败');
+        }
+    } catch(e) {
+        showToast('网络错误，请重试');
+    }
+    
+    btn.disabled = false;
+    btn.textContent = '创建行程';
+}
+
+async function joinTrip() {
+    const shareCode = document.getElementById('shareCode').value.trim().toUpperCase();
+    const memberName = document.getElementById('joinName').value.trim() || '我';
+    
+    if (!shareCode) {
+        showToast('请输入共享码');
+        return;
+    }
+    
+    const btn = document.querySelector('#joinForm .btn');
+    btn.disabled = true;
+    btn.textContent = '加入中...';
+    
+    try {
+        const res = await fetch('/api/trip/join', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({share_code: shareCode, member_name: memberName})
+        });
+        const data = await res.json();
+        
+        if (data.ok) {
+            const recent = JSON.parse(sessionStorage.getItem('recentTrips') || '[]');
+            recent.unshift({id: data.trip_id, name: data.trip_name, code: shareCode});
+            sessionStorage.setItem('recentTrips', JSON.stringify(recent.slice(0, 10)));
+            
+            window.location = `/trip/${data.trip_id}`;
+        } else {
+            showToast(data.error || '加入失败');
+        }
+    } catch(e) {
+        showToast('网络错误，请重试');
+    }
+    
+    btn.disabled = false;
+    btn.textContent = '加入行程';
+}
+</script>
+{% endblock %}

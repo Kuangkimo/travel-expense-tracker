@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}出游账本{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+    {% if trip_id %}
+    <nav class="nav-bar">
+        <div class="nav-inner">
+            <button class="nav-back" onclick="goBack()" id="backBtn">← 返回</button>
+            <span class="nav-title" id="navTitle">{% block nav_title %}出游账本{% endblock %}</span>
+            <div class="nav-right" id="navRight">
+                {% block nav_right %}{% endblock %}
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+    
+    <main class="main-content {% if trip_id %}has-nav{% endif %}">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

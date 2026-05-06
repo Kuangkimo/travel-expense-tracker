@@ -1,0 +1,471 @@
+{% extends "base.html" %}
+{% block title %}行程详情{% endblock %}
+{% block nav_title %}<span id="tripNameHeader">行程</span>{% endblock %}
+{% block nav_right %}
+    <span class="share-badge" id="shareBadge" onclick="copyShareCode()">📋 共享码</span>
+{% endblock %}
+
+{% block content %}
+<div class="trip-page" data-trip-id="{{ trip_id }}">
+
+    <!-- 快速统计卡片 -->
+    <div class="stats-row">
+        <div class="stat-card" onclick="navigateTo('settle')">
+            <div class="stat-value" id="totalAmount">¥0</div>
+            <div class="stat-label">总花费</div>
+        </div>
+        <div class="stat-card" onclick="navigateTo('settle')">
+            <div class="stat-value" id="perPerson">¥0</div>
+            <div class="stat-label">人均</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="expenseCount">0</div>
+            <div class="stat-label">笔数</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="memberCount">0</div>
+            <div class="stat-label">成员</div>
+        </div>
+    </div>
+
+    <!-- 分类占比 -->
+    <div class="section">
+        <div class="section-header">
+            <h3>📊 花费分类</h3>
+            <button class="btn-sm" onclick="navigateTo('settle')">查看详情</button>
+        </div>
+        <div class="category-bars" id="categoryBars">
+            <div class="loading-text">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 快速录入按钮 -->
+    <div class="quick-add-row">
+        <button class="btn btn-primary btn-big" onclick="navigateTo('add')">
+            <span class="btn-icon">➕</span> 记一笔
+        </button>
+        <div class="quick-presets" id="quickPresets">
+            <button class="chip" onclick="quickAdd('餐饮', 0)">🍽️ 餐饮</button>
+            <button class="chip" onclick="quickAdd('交通', 0)">🚗 交通</button>
+            <button class="chip" onclick="quickAdd('住宿', 0)">🏠 住宿</button>
+            <button class="chip" onclick="quickAdd('门票', 0)">🎫 门票</button>
+            <button class="chip" onclick="quickAdd('购物', 0)">🛍️ 购物</button>
+            <button class="chip" onclick="quickAdd('其他', 0)">📌 其他</button>
+        </div>
+    </div>
+
+    <!-- 操作导航 -->
+    <div class="action-grid">
+        <div class="action-card" onclick="navigateTo('settle')">
+            <span class="action-icon">💰</span>
+            <span class="action-label">结算</span>
+        </div>
+        <div class="action-card" onclick="navigateTo('sync')">
+            <span class="action-icon">🔄</span>
+            <span class="action-label">同步</span>
+        </div>
+        <div class="action-card" onclick="manageMembers()">
+            <span class="action-icon">👥</span>
+            <span class="action-label">成员</span>
+        </div>
+        <div class="action-card" onclick="takeScreenshot()">
+            <span class="action-icon">📸</span>
+            <span class="action-label">截图</span>
+        </div>
+    </div>
+
+    <!-- 支出列表 -->
+    <div class="section">
+        <div class="section-header">
+            <h3>📝 支出明细</h3>
+            <div class="filter-row">
+                <select id="categoryFilter" onchange="loadExpenses()" class="filter-select">
+                    <option value="">全部</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}">{{ icons[cat] }} {{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div id="expenseList" class="expense-list">
+            <div class="loading-text">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 快捷输入弹窗 -->
+    <div id="quickModal" class="modal" style="display:none;">
+        <div class="modal-backdrop" onclick="closeQuickModal()"></div>
+        <div class="modal-content">
+            <h3 id="quickModalTitle">添加支出</h3>
+            <div class="form-group">
+                <label>金额 (¥)</label>
+                <input type="number" id="quickAmount" placeholder="0.00" step="0.01" min="0" inputmode="decimal">
+            </div>
+            <div class="form-group">
+                <label>备注</label>
+                <input type="text" id="quickNote" placeholder="买了什么？" maxlength="50">
+            </div>
+            <div class="form-row form-group">
+                <div style="flex:1">
+                    <label>谁付的</label>
+                    <select id="quickPayer" class="filter-select"></select>
+                </div>
+                <div style="flex:1">
+                    <label>分摊</label>
+                    <select id="quickSplitType" class="filter-select">
+                        <option value="equal">均摊</option>
+                        <option value="self">自己承担</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeQuickModal()">取消</button>
+                <button class="btn btn-primary" onclick="submitQuickAdd()">确认添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 成员管理弹窗 -->
+    <div id="memberModal" class="modal" style="display:none;">
+        <div class="modal-backdrop" onclick="closeMemberModal()"></div>
+        <div class="modal-content">
+            <h3>👥 成员管理</h3>
+            <div id="memberList" class="member-list-modal"></div>
+            <div class="form-group">
+                <div class="input-row">
+                    <input type="text" id="newMemberName" placeholder="添加成员名字" maxlength="20">
+                    <button class="btn btn-primary" onclick="addMember()">添加</button>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeMemberModal()">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 截图弹窗 -->
+    <div id="screenshotModal" class="modal" style="display:none;">
+        <div class="modal-backdrop" onclick="closeScreenshotModal()"></div>
+        <div class="modal-content screenshot-content" id="screenshotContent">
+            <div id="screenshotPreview">
+                <!-- 截图内容由JS生成 -->
+            </div>
+        </div>
+        <div class="screenshot-actions" id="screenshotActions" style="display:none;">
+            <button class="btn btn-primary" onclick="downloadScreenshot()">📥 保存截图</button>
+            <button class="btn btn-secondary" onclick="closeScreenshotModal()">关闭</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let currentTripId = {{ trip_id }};
+let members = [];
+let allExpenses = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadTripInfo();
+    loadExpenses();
+});
+
+async function loadTripInfo() {
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}`);
+        const data = await res.json();
+        if (!data.ok) { showToast('加载失败'); return; }
+        
+        const trip = data.trip;
+        members = data.members;
+        
+        document.getElementById('tripNameHeader').textContent = trip.name;
+        document.getElementById('shareBadge').textContent = `📋 ${trip.share_code}`;
+        document.getElementById('memberCount').textContent = members.length;
+        
+        // 填充快速添加的付款人选项
+        const payerSelect = document.getElementById('quickPayer');
+        payerSelect.innerHTML = members.map(m => 
+            `<option value="${m.id}">${m.is_self ? '👤 ' : ''}${m.name}</option>`
+        ).join('');
+    } catch(e) {
+        showToast('加载行程信息失败');
+    }
+}
+
+async function loadExpenses() {
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/expenses`);
+        const data = await res.json();
+        if (!data.ok) return;
+        
+        allExpenses = data.expenses;
+        const filter = document.getElementById('categoryFilter').value;
+        
+        let filtered = allExpenses;
+        if (filter) filtered = filtered.filter(e => e.category === filter);
+        
+        // 更新统计
+        let total = 0;
+        const catTotals = {};
+        filtered.forEach(e => {
+            total += e.amount;
+            catTotals[e.category] = (catTotals[e.category] || 0) + e.amount;
+        });
+        
+        document.getElementById('totalAmount').textContent = `¥${total.toFixed(2)}`;
+        document.getElementById('perPerson').textContent = `¥${members.length > 0 ? (total / members.length).toFixed(2) : '0.00'}`;
+        document.getElementById('expenseCount').textContent = filtered.length;
+        
+        // 分类柱状图
+        renderCategoryBars(catTotals);
+        
+        // 支出列表
+        if (filtered.length === 0) {
+            document.getElementById('expenseList').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <div class="empty-text">还没有支出记录</div>
+                    <div class="empty-hint">点击上方「记一笔」开始记录</div>
+                </div>
+            `;
+        } else {
+            document.getElementById('expenseList').innerHTML = filtered.map(e => `
+                <div class="expense-item">
+                    <div class="expense-icon">${getCategoryIcon(e.category)}</div>
+                    <div class="expense-info">
+                        <div class="expense-top">
+                            <span class="expense-category">${e.category}</span>
+                            <span class="expense-amount">¥${e.amount.toFixed(2)}</span>
+                        </div>
+                        <div class="expense-bottom">
+                            <span class="expense-payer">${e.payer_name}</span>
+                            ${e.note ? `<span class="expense-note">· ${e.note}</span>` : ''}
+                            <span class="expense-time">${formatTime(e.expense_time)}</span>
+                        </div>
+                    </div>
+                    <button class="expense-delete" onclick="deleteExpense(${e.id})">✕</button>
+                </div>
+            `).join('');
+        }
+    } catch(e) {
+        showToast('加载支出失败');
+    }
+}
+
+function renderCategoryBars(catTotals) {
+    const container = document.getElementById('categoryBars');
+    const cats = ['餐饮', '交通', '住宿', '门票', '购物', '酒水/娱乐', '其他'];
+    const total = Object.values(catTotals).reduce((a, b) => a + b, 0);
+    
+    if (total === 0) {
+        container.innerHTML = '<div class="empty-hint">暂无数据</div>';
+        return;
+    }
+    
+    container.innerHTML = cats.map(cat => {
+        const amount = catTotals[cat] || 0;
+        const pct = total > 0 ? (amount / total * 100) : 0;
+        return `
+            <div class="cat-bar-row">
+                <div class="cat-bar-label">
+                    <span>${getCategoryIcon(cat)} ${cat}</span>
+                    <span>¥${amount.toFixed(2)}</span>
+                </div>
+                <div class="cat-bar-track">
+                    <div class="cat-bar-fill" style="width:${pct}%"></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function getCategoryIcon(cat) {
+    const icons = {'餐饮':'🍽️','交通':'🚗','住宿':'🏠','门票':'🎫','购物':'🛍️','酒水/娱乐':'🍻','其他':'📌'};
+    return icons[cat] || '📌';
+}
+
+function formatTime(t) {
+    if (!t) return '';
+    const d = new Date(t);
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hour = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${month}-${day} ${hour}:${min}`;
+}
+
+// ── 导航 ──
+function navigateTo(page) {
+    window.location = `/${page === 'add' ? 'trip/' + currentTripId + '/add' : page === 'settle' ? 'trip/' + currentTripId + '/settle' : page === 'sync' ? 'trip/' + currentTripId + '/sync' : ''}`;
+}
+
+function goBack() {
+    window.location = '/';
+}
+
+// ── 分享码 ──
+async function copyShareCode() {
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}`);
+        const data = await res.json();
+        if (!data.ok) return;
+        
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(data.trip.share_code);
+            showToast('已复制共享码：' + data.trip.share_code);
+        } else {
+            // Fallback
+            const ta = document.createElement('textarea');
+            ta.value = data.trip.share_code;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast('已复制：' + data.trip.share_code);
+        }
+    } catch(e) {
+        showToast('复制失败');
+    }
+}
+
+// ── 快捷添加 ──
+function quickAdd(category, amount) {
+    document.getElementById('quickModalTitle').textContent = `添加 ${getCategoryIcon(category)} ${category}`;
+    document.getElementById('quickModal').dataset.category = category;
+    document.getElementById('quickAmount').value = amount || '';
+    document.getElementById('quickNote').value = '';
+    document.getElementById('quickModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('quickAmount').focus(), 300);
+}
+
+function closeQuickModal() {
+    document.getElementById('quickModal').style.display = 'none';
+}
+
+async function submitQuickAdd() {
+    const category = document.getElementById('quickModal').dataset.category;
+    const amount = parseFloat(document.getElementById('quickAmount').value);
+    const note = document.getElementById('quickNote').value.trim();
+    const memberId = parseInt(document.getElementById('quickPayer').value);
+    const splitType = document.getElementById('quickSplitType').value;
+    
+    if (!amount || amount <= 0) {
+        showToast('请输入有效金额');
+        return;
+    }
+    
+    let splitMembers = [];
+    if (splitType === 'equal') {
+        splitMembers = members.map(m => m.id);
+    } else {
+        splitMembers = [memberId];
+    }
+    
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/expense/add`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                amount, category, note,
+                member_id: memberId,
+                split_type: splitType,
+                split_members: splitMembers
+            })
+        });
+        const data = await res.json();
+        
+        if (data.ok) {
+            closeQuickModal();
+            showToast(`✅ 已添加 ¥${amount.toFixed(2)}`);
+            loadExpenses();
+        } else {
+            showToast(data.error || '添加失败');
+        }
+    } catch(e) {
+        showToast('网络错误');
+    }
+}
+
+// ── 删除支出 ──
+async function deleteExpense(id) {
+    if (!confirm('确定删除这笔支出吗？')) return;
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/expense/${id}/delete`, {method: 'POST'});
+        const data = await res.json();
+        if (data.ok) {
+            showToast('已删除');
+            loadExpenses();
+        }
+    } catch(e) {}
+}
+
+// ── 成员管理 ──
+function manageMembers() {
+    const modal = document.getElementById('memberModal');
+    modal.style.display = 'flex';
+    renderMemberList();
+}
+
+function closeMemberModal() {
+    document.getElementById('memberModal').style.display = 'none';
+}
+
+function renderMemberList() {
+    const list = document.getElementById('memberList');
+    list.innerHTML = members.map(m => `
+        <div class="member-item">
+            <span class="member-name">${m.is_self ? '👤 ' : ''}${m.name}</span>
+            ${!m.is_self ? `<button class="btn-sm btn-danger" onclick="removeMember(${m.id})">移除</button>` : '<span class="member-badge">我</span>'}
+        </div>
+    `).join('');
+}
+
+async function addMember() {
+    const name = document.getElementById('newMemberName').value.trim();
+    if (!name) { showToast('请输入名字'); return; }
+    
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/member/add`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            document.getElementById('newMemberName').value = '';
+            showToast(`已添加 ${name}`);
+            await loadTripInfo();
+            renderMemberList();
+        } else {
+            showToast(data.error);
+        }
+    } catch(e) {}
+}
+
+async function removeMember(id) {
+    if (!confirm('确定移除该成员及其支出？')) return;
+    try {
+        await fetch(`/api/trip/${currentTripId}/member/${id}/delete`, {method: 'POST'});
+        showToast('已移除');
+        await loadTripInfo();
+        loadExpenses();
+    } catch(e) {}
+}
+
+// ── 截图生成 ──
+function takeScreenshot() {
+    showToast('生成结算截图中...');
+    // 跳转到结算页，触发截图
+    window.location = `/trip/${currentTripId}/settle?screenshot=1`;
+}
+
+// ── Toast ──
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+{% endblock %}

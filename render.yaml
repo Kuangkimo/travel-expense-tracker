@@ -1,0 +1,13 @@
+# 出游账本 - Render部署配置
+# Fork 仓库后, 在 Render Dashboard → Blueprint → Connect 即可部署
+
+services:
+  - type: web
+    name: travel-expense-tracker
+    env: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+    autoDeploy: true
+    plan: free
