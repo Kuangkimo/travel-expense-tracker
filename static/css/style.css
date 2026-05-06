@@ -338,6 +338,54 @@ body {
     flex-shrink: 0;
 }
 
+/* ── 邀请卡片 ── */
+.invite-card {
+    display: flex; align-items: center;
+    background: linear-gradient(135deg, #E8F0FE, #D6E4FF);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.invite-left {
+    display: flex; align-items: center; gap: 10px;
+    flex: 1; min-width: 0;
+}
+
+.invite-icon {
+    font-size: 24px;
+}
+
+.invite-text {
+    display: flex; flex-direction: column;
+    min-width: 0;
+}
+
+.invite-title {
+    font-size: 14px; font-weight: 600;
+    color: var(--text);
+}
+
+.invite-hint {
+    font-size: 11px; color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.invite-code {
+    font-size: 22px; font-weight: 800;
+    letter-spacing: 3px;
+    color: var(--primary);
+    font-family: 'Courier New', monospace;
+    flex-shrink: 0;
+}
+
+.invite-copy {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
 /* ── 区块 ── */
 .section {
     margin-bottom: 20px;

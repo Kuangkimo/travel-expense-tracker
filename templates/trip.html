@@ -1,12 +1,23 @@
 {% extends "base.html" %}
 {% block title %}行程详情{% endblock %}
 {% block nav_title %}<span id="tripNameHeader">行程</span>{% endblock %}
-{% block nav_right %}
-    <span class="share-badge" id="shareBadge" onclick="copyShareCode()">📋 共享码</span>
-{% endblock %}
+{% block nav_right %}{% endblock %}
 
 {% block content %}
 <div class="trip-page" data-trip-id="{{ trip_id }}">
+
+    <!-- 邀请卡片 -->
+    <div class="invite-card" onclick="copyShareCode()">
+        <div class="invite-left">
+            <div class="invite-icon">🔗</div>
+            <div class="invite-text">
+                <span class="invite-title">邀请朋友加入</span>
+                <span class="invite-hint">复制共享码，朋友打开网址输入即可加入</span>
+            </div>
+        </div>
+        <div class="invite-code" id="shareCodeDisplay">----</div>
+        <div class="invite-copy">📋</div>
+    </div>
 
     <!-- 快速统计卡片 -->
     <div class="stats-row">
@@ -22,18 +33,18 @@
             <div class="stat-value" id="expenseCount">0</div>
             <div class="stat-label">笔数</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" onclick="manageMembers()">
             <div class="stat-value" id="memberCount">0</div>
-            <div class="stat-label">成员</div>
+            <div class="stat-label">成员 ›</div>
         </div>
     </div>
 
-    <!-- 成员栏 -->
+    <!-- 成员栏（展示已加入的人） -->
     <div class="member-bar" id="memberBar">
         <div class="member-chips" id="memberChips">
             <div class="loading-text">加载中...</div>
         </div>
-        <button class="member-add-btn" onclick="manageMembers()">+ 添加</button>
+        <button class="member-add-btn" onclick="manageMembers()" title="帮没手机的人代记">📝 代记</button>
     </div>
 
     <!-- 分类占比 -->
@@ -73,8 +84,8 @@
             <span class="action-label">同步</span>
         </div>
         <div class="action-card" onclick="manageMembers()">
-            <span class="action-icon">👥</span>
-            <span class="action-label">成员</span>
+            <span class="action-icon">📝</span>
+            <span class="action-label">代记</span>
         </div>
         <div class="action-card" onclick="takeScreenshot()">
             <span class="action-icon">📸</span>
@@ -165,11 +176,13 @@
     <div id="memberModal" class="modal" style="display:none;">
         <div class="modal-backdrop" onclick="closeMemberModal()"></div>
         <div class="modal-content">
-            <h3>👥 成员管理</h3>
+            <h3>📝 代记人管理</h3>
+            <p class="form-hint" style="margin-bottom:12px;">已通过共享码加入的朋友会自动出现在这里。下面可以帮没手机的人添加代记。</p>
             <div id="memberList" class="member-list-modal"></div>
-            <div class="form-group">
+            <div class="form-group" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+                <label style="font-size:13px;color:var(--text-secondary);">帮没手机的人代记</label>
                 <div class="input-row">
-                    <input type="text" id="newMemberName" placeholder="添加成员名字" maxlength="20">
+                    <input type="text" id="newMemberName" placeholder="输入名字" maxlength="20">
                     <button class="btn btn-primary" onclick="addMember()">添加</button>
                 </div>
             </div>
@@ -215,7 +228,7 @@ async function loadTripInfo() {
         members = data.members;
         
         document.getElementById('tripNameHeader').textContent = trip.name;
-        document.getElementById('shareBadge').textContent = `📋 ${trip.share_code}`;
+        document.getElementById('shareCodeDisplay').textContent = trip.share_code;
         document.getElementById('memberCount').textContent = members.length;
         
         // 渲染成员标签
@@ -347,25 +360,28 @@ function goBack() {
     window.location = '/';
 }
 
-// ── 分享码 ──
+// ── 邀请 ──
 async function copyShareCode() {
     try {
         const res = await fetch(`/api/trip/${currentTripId}`);
         const data = await res.json();
         if (!data.ok) return;
         
+        const code = data.trip.share_code;
+        const url = window.location.origin;
+        const text = `📋 加入我的旅行账本\n共享码: ${code}\n打开 ${url} → 输入共享码加入`;
+        
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(data.trip.share_code);
-            showToast('已复制共享码：' + data.trip.share_code);
+            await navigator.clipboard.writeText(text);
+            showToast('✅ 已复制邀请信息，发到微信群即可');
         } else {
-            // Fallback
             const ta = document.createElement('textarea');
-            ta.value = data.trip.share_code;
+            ta.value = text;
             document.body.appendChild(ta);
             ta.select();
             document.execCommand('copy');
             document.body.removeChild(ta);
-            showToast('已复制：' + data.trip.share_code);
+            showToast('✅ 已复制邀请信息');
         }
     } catch(e) {
         showToast('复制失败');
@@ -512,12 +528,19 @@ function closeMemberModal() {
 
 function renderMemberList() {
     const list = document.getElementById('memberList');
-    list.innerHTML = members.map(m => `
-        <div class="member-item">
-            <span class="member-name">${m.is_self ? '👤 ' : ''}${m.name}</span>
-            ${!m.is_self ? `<button class="btn-sm btn-danger" onclick="removeMember(${m.id})">移除</button>` : '<span class="member-badge">我</span>'}
-        </div>
-    `).join('');
+    list.innerHTML = members.map(m => {
+        const label = m.is_self ? '👤 我' : '✅ 已加入';
+        const canRemove = !m.is_self;
+        return `
+            <div class="member-item">
+                <div>
+                    <span class="member-name">${m.name}</span>
+                    <span class="member-badge" style="font-size:11px;margin-left:6px;">${m.is_self ? '👤 我' : '✅ 已加入'}</span>
+                </div>
+                ${canRemove ? `<button class="btn-sm btn-danger" onclick="removeMember(${m.id})">移除</button>` : ''}
+            </div>
+        `;
+    }).join('');
 }
 
 async function addMember() {
