@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}个人中心{% endblock %}
+{% block nav_title %}个人中心{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+    <!-- 头像区 -->
+    <div class="profile-header">
+        <div class="profile-avatar" id="profileAvatar">
+            <span id="profileAvatarText">?</span>
+            <div class="profile-avatar-overlay" onclick="document.getElementById('avatarInput').click()">
+                <span>📷</span>
+            </div>
+        </div>
+        <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
+        <div class="profile-name" id="profileNameDisplay">用户</div>
+        <div class="profile-username" id="profileUsernameDisplay">@username</div>
+    </div>
+
+    <!-- 编辑资料 -->
+    <div class="form-card">
+        <h3>✏️ 编辑资料</h3>
+        <div class="form-group">
+            <label>昵称</label>
+            <input type="text" id="nicknameInput" placeholder="设置你的昵称" maxlength="20">
+        </div>
+        <button class="btn btn-primary btn-full" onclick="saveProfile()">保存修改</button>
+        <p class="form-hint" id="profileMsg" style="display:none;"></p>
+    </div>
+
+    <!-- 我的行程 -->
+    <div class="section">
+        <div class="section-header">
+            <h3>📁 我的行程</h3>
+        </div>
+        <div id="profileTrips" class="profile-trips">
+            <div class="loading-text">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 退出 -->
+    <div class="profile-actions">
+        <button class="btn btn-danger btn-full" onclick="confirmLogout()">🚪 退出登录</button>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadProfile();
+    loadProfileTrips();
+});
+
+async function loadProfile() {
+    try {
+        const res = await fetch('/api/me');
+        const data = await res.json();
+        if (!data.ok) {
+            window.location = '/';
+            return;
+        }
+        const u = data.user;
+        const displayName = u.nickname || u.username;
+        document.getElementById('profileAvatarText').textContent = displayName[0];
+        document.getElementById('profileNameDisplay').textContent = displayName;
+        document.getElementById('profileUsernameDisplay').textContent = '@' + u.username;
+        document.getElementById('nicknameInput').value = u.nickname || '';
+        if (u.avatar_url) {
+            document.getElementById('profileAvatar').style.backgroundImage = `url(${u.avatar_url})`;
+            document.getElementById('profileAvatarText').style.display = 'none';
+        }
+    } catch(e) {
+        window.location = '/';
+    }
+}
+
+async function saveProfile() {
+    const nickname = document.getElementById('nicknameInput').value.trim();
+    const msg = document.getElementById('profileMsg');
+    try {
+        const res = await fetch('/api/profile/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({nickname})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            msg.textContent = '✅ 已保存';
+            msg.style.color = 'var(--success)';
+            msg.style.display = 'block';
+            loadProfile();
+        } else {
+            msg.textContent = data.error;
+            msg.style.color = 'var(--danger)';
+            msg.style.display = 'block';
+        }
+    } catch(e) {
+        msg.textContent = '网络错误';
+        msg.style.color = 'var(--danger)';
+        msg.style.display = 'block';
+    }
+    setTimeout(() => msg.style.display = 'none', 3000);
+}
+
+async function uploadAvatar(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('avatar', file);
+    try {
+        const res = await fetch('/api/profile/avatar', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        if (data.ok) {
+            showToast('✅ 头像已更新');
+            loadProfile();
+        } else {
+            showToast(data.error || '上传失败');
+        }
+    } catch(e) {
+        showToast('上传失败');
+    }
+    input.value = '';
+}
+
+async function loadProfileTrips() {
+    try {
+        const res = await fetch('/api/my/trips');
+        const data = await res.json();
+        const container = document.getElementById('profileTrips');
+        if (!data.ok || !data.trips || data.trips.length === 0) {
+            container.innerHTML = '<div class="empty-hint">暂无行程记录</div>';
+            return;
+        }
+        container.innerHTML = data.trips.map(t => `
+            <div class="profile-trip-item" onclick="window.location='/trip/${t.id}'">
+                <div class="pt-info">
+                    <span class="pt-name">${t.name}</span>
+                    <span class="pt-code">${t.share_code}</span>
+                </div>
+                <span class="pt-arrow">›</span>
+            </div>
+        `).join('');
+    } catch(e) {
+        document.getElementById('profileTrips').innerHTML = '<div class="empty-hint">加载失败</div>';
+    }
+}
+
+function confirmLogout() {
+    if (confirm('确定退出登录吗？')) {
+        fetch('/api/logout', {method: 'POST'}).then(() => {
+            window.location = '/';
+        });
+    }
+}
+</script>
+{% endblock %}

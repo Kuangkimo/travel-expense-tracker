@@ -9,8 +9,47 @@
         <p class="app-desc">无感记录 · 自动算账 · 多人同步</p>
     </div>
 
+    <!-- 用户状态 -->
+    <div id="userSection" class="user-section" style="display:none;">
+        <div class="user-section-info" id="userSectionInfo">
+            <div class="user-avatar-wrap" id="userAvatarWrap">👤</div>
+            <div>
+                <div class="user-section-name" id="userSectionName">用户</div>
+                <div class="user-section-status">已登录</div>
+            </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="logoutUser()">退出</button>
+    </div>
+
+    <!-- 登录/注册表单 -->
+    <div id="authSection" class="auth-section">
+        <div class="auth-tabs">
+            <button class="auth-tab active" id="tabLogin" onclick="switchAuth('login')">登录</button>
+            <button class="auth-tab" id="tabRegister" onclick="switchAuth('register')">注册</button>
+        </div>
+        <div id="loginForm" class="auth-form">
+            <div class="form-group">
+                <input type="text" id="loginUsername" placeholder="用户名" maxlength="20">
+            </div>
+            <div class="form-group">
+                <input type="password" id="loginPassword" placeholder="密码" maxlength="50">
+            </div>
+            <button class="btn btn-primary btn-full" onclick="loginUser()">登录</button>
+            <p class="form-hint" id="loginError" style="color:var(--danger);display:none;"></p>
+        </div>
+        <div id="registerForm" class="auth-form" style="display:none;">
+            <div class="form-group">
+                <input type="text" id="regUsername" placeholder="用户名" maxlength="20">
+            </div>
+            <div class="form-group">
+                <input type="password" id="regPassword" placeholder="密码（至少4位）" maxlength="50">
+            </div>
+            <button class="btn btn-primary btn-full" onclick="registerUser()">注册</button>
+            <p class="form-hint" id="regError" style="color:var(--danger);display:none;"></p>
+        </div>
+    </div>
+
     <div class="card-list">
-        <!-- 创建行程 -->
         <div class="card card-primary" onclick="showCreateForm()">
             <div class="card-icon">✨</div>
             <div class="card-body">
@@ -19,8 +58,6 @@
             </div>
             <div class="card-arrow">→</div>
         </div>
-
-        <!-- 加入行程 -->
         <div class="card" onclick="showJoinForm()">
             <div class="card-icon">🔗</div>
             <div class="card-body">
@@ -60,7 +97,13 @@
         <button class="btn btn-primary btn-full" onclick="joinTrip()">加入行程</button>
     </div>
 
-    <!-- 历史行程 -->
+    <!-- 我的行程（登录后） -->
+    <div id="myTrips" class="recent-list" style="display:none;">
+        <h3>📁 我的行程</h3>
+        <div id="myTripsList"></div>
+    </div>
+
+    <!-- 历史行程（未登录时） -->
     <div id="recentTrips" class="recent-list" style="display:none;">
         <h3>📋 最近行程</h3>
         <p class="form-hint" style="margin: -4px 0 12px; font-size:12px;">长按可删除记录</p>
@@ -85,20 +128,129 @@
 </div>
 
 <script>
-let historyData = null;  // 当前点击的历史行程数据
+let historyData = null;
 let historyTripId = null;
 
-// 从sessionStorage获取最近行程
 document.addEventListener('DOMContentLoaded', function() {
+    checkAuth();
     renderRecentTrips();
 });
 
+// ── 登录状态 ──
+function checkAuth() {
+    fetch('/api/me')
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                document.getElementById('authSection').style.display = 'none';
+                document.getElementById('userSection').style.display = 'flex';
+                const u = data.user;
+                document.getElementById('userSectionName').textContent = u.nickname || u.username;
+                document.getElementById('userAvatarWrap').textContent = (u.nickname || u.username)[0];
+                loadMyTrips();
+            } else {
+                document.getElementById('authSection').style.display = 'block';
+                document.getElementById('userSection').style.display = 'none';
+            }
+        })
+        .catch(() => {});
+}
+
+function switchAuth(mode) {
+    document.getElementById('loginForm').style.display = mode === 'login' ? 'block' : 'none';
+    document.getElementById('registerForm').style.display = mode === 'register' ? 'block' : 'none';
+    document.getElementById('tabLogin').classList.toggle('active', mode === 'login');
+    document.getElementById('tabRegister').classList.toggle('active', mode === 'register');
+    document.getElementById('loginError').style.display = 'none';
+    document.getElementById('regError').style.display = 'none';
+}
+
+async function loginUser() {
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const err = document.getElementById('loginError');
+    
+    if (!username || !password) { err.textContent = '请输入用户名和密码'; err.style.display = 'block'; return; }
+    
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, password})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            checkAuth();
+            // 刷新导航栏
+            location.reload();
+        } else {
+            err.textContent = data.error; err.style.display = 'block';
+        }
+    } catch(e) {
+        err.textContent = '网络错误'; err.style.display = 'block';
+    }
+}
+
+async function registerUser() {
+    const username = document.getElementById('regUsername').value.trim();
+    const password = document.getElementById('regPassword').value;
+    const err = document.getElementById('regError');
+    
+    if (!username || username.length < 2) { err.textContent = '用户名至少2个字符'; err.style.display = 'block'; return; }
+    if (!password || password.length < 4) { err.textContent = '密码至少4位'; err.style.display = 'block'; return; }
+    
+    try {
+        const res = await fetch('/api/register', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, password})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            checkAuth();
+            location.reload();
+        } else {
+            err.textContent = data.error; err.style.display = 'block';
+        }
+    } catch(e) {
+        err.textContent = '网络错误'; err.style.display = 'block';
+    }
+}
+
+async function logoutUser() {
+    await fetch('/api/logout', {method: 'POST'});
+    location.reload();
+}
+
+// ── 我的行程 ──
+async function loadMyTrips() {
+    try {
+        const res = await fetch('/api/my/trips');
+        const data = await res.json();
+        if (!data.ok || !data.trips || data.trips.length === 0) {
+            document.getElementById('myTrips').style.display = 'none';
+            return;
+        }
+        document.getElementById('myTrips').style.display = 'block';
+        const list = document.getElementById('myTripsList');
+        list.innerHTML = data.trips.map(t => `
+            <div class="recent-item" onclick="window.location='/trip/${t.id}'">
+                <div class="recent-info">
+                    <span class="recent-name">${t.name}</span>
+                    <span class="recent-code">${t.share_code}</span>
+                </div>
+                <div class="recent-arrow">›</div>
+            </div>
+        `).join('');
+    } catch(e) {
+        document.getElementById('myTrips').style.display = 'none';
+    }
+}
+
+// ── 最近行程（本地缓存，未登录时用） ──
 function renderRecentTrips() {
     const recent = JSON.parse(sessionStorage.getItem('recentTrips') || '[]');
-    if (recent.length === 0) {
-        document.getElementById('recentTrips').style.display = 'none';
-        return;
-    }
+    if (recent.length === 0) { return; }
     document.getElementById('recentTrips').style.display = 'block';
     const list = document.getElementById('recentTripsList');
     list.innerHTML = recent.map((t, i) => `
@@ -129,10 +281,7 @@ function startLongPress(index) {
 }
 
 function endLongPress() {
-    if (longPressTimer) {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
-    }
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
 }
 
 // ── 历史弹窗 ──
@@ -140,83 +289,53 @@ function openHistoryModal(index) {
     const recent = JSON.parse(sessionStorage.getItem('recentTrips') || '[]');
     const trip = recent[index];
     if (!trip) return;
-    
-    historyData = trip;
-    historyTripId = trip.id;
-    
+    historyData = trip; historyTripId = trip.id;
     document.getElementById('historyModalTitle').textContent = `📋 ${trip.name}`;
     const body = document.getElementById('historyModalBody');
     body.innerHTML = '<div class="loading-text">加载中...</div>';
     document.getElementById('historyModal').style.display = 'flex';
-    
-    // 加载详细信息
     fetch(`/api/trip/${trip.id}`)
         .then(r => r.json())
         .then(data => {
-            if (!data.ok) {
-                body.innerHTML = `<div class="empty-hint">无法加载详情</div>`;
-                return;
-            }
+            if (!data.ok) { body.innerHTML = '<div class="empty-hint">无法加载详情</div>'; return; }
             const t = data.trip;
             const members = data.members || [];
             const expenses = data.expenses || [];
             const total = expenses.reduce((s, e) => s + e.amount, 0);
             body.innerHTML = `
                 <div class="history-info-grid">
-                    <div class="history-info-item">
-                        <span class="hi-label">共享码</span>
-                        <span class="hi-value code">${t.share_code}</span>
-                    </div>
-                    <div class="history-info-item">
-                        <span class="hi-label">成员</span>
-                        <span class="hi-value">${members.length}人 ${members.map(m => m.name).join(' · ')}</span>
-                    </div>
-                    <div class="history-info-item">
-                        <span class="hi-label">支出</span>
-                        <span class="hi-value">${expenses.length}笔</span>
-                    </div>
-                    <div class="history-info-item">
-                        <span class="hi-label">总花费</span>
-                        <span class="hi-value primary">¥${total.toFixed(2)}</span>
-                    </div>
-                    <div class="history-info-item">
-                        <span class="hi-label">创建时间</span>
-                        <span class="hi-value">${t.created_at || '-'}</span>
-                    </div>
-                </div>
-            `;
+                    <div class="history-info-item"><span class="hi-label">共享码</span><span class="hi-value code">${t.share_code}</span></div>
+                    <div class="history-info-item"><span class="hi-label">成员</span><span class="hi-value">${members.length}人 ${members.map(m => m.name).join(' · ')}</span></div>
+                    <div class="history-info-item"><span class="hi-label">支出</span><span class="hi-value">${expenses.length}笔</span></div>
+                    <div class="history-info-item"><span class="hi-label">总花费</span><span class="hi-value primary">¥${total.toFixed(2)}</span></div>
+                    <div class="history-info-item"><span class="hi-label">创建时间</span><span class="hi-value">${t.created_at || '-'}</span></div>
+                </div>`;
         })
-        .catch(() => {
-            body.innerHTML = `<div class="empty-hint">加载失败</div>`;
-        });
+        .catch(() => { body.innerHTML = '<div class="empty-hint">加载失败</div>'; });
 }
 
 function closeHistoryModal() {
     document.getElementById('historyModal').style.display = 'none';
-    historyData = null;
-    historyTripId = null;
+    historyData = null; historyTripId = null;
 }
 
 function viewHistoryDetail() {
-    if (historyTripId) {
-        window.location = `/trip/${historyTripId}`;
-    }
+    if (historyTripId) window.location = `/trip/${historyTripId}`;
 }
 
 function deleteHistoryItem(index) {
     const recent = JSON.parse(sessionStorage.getItem('recentTrips') || '[]');
     if (index === undefined) {
-        // 从弹窗删除
         if (historyTripId === null) return;
         index = recent.findIndex(t => t.id === historyTripId);
     }
     if (index === -1) return;
     recent.splice(index, 1);
     sessionStorage.setItem('recentTrips', JSON.stringify(recent));
-    closeHistoryModal();
-    renderRecentTrips();
-    showToast('已删除记录');
+    closeHistoryModal(); renderRecentTrips(); showToast('已删除记录');
 }
+
+// ── 创建/加入行程 ──
 
 function showCreateForm() {
     document.getElementById('createForm').style.display = 'block';

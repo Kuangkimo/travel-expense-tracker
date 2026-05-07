@@ -9,6 +9,8 @@ import re
 from datetime import datetime
 from io import BytesIO
 
+from werkzeug.security import generate_password_hash, check_password_hash
+
 from flask import (
     Flask, render_template, request, jsonify, 
     redirect, url_for, session, send_from_directory
@@ -87,6 +89,22 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            nickname TEXT DEFAULT '',
+            avatar_url TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS user_trips (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            trip_id INTEGER NOT NULL,
+            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE
+        );
     """)
     conn.commit()
     conn.close()
@@ -139,6 +157,178 @@ def parse_ocr_text(text):
 def index():
     return render_template('index.html', categories=CATEGORIES, icons=CATEGORY_ICONS)
 
+# ── API：用户 ────────────────────────────────
+
+@app.route('/api/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    
+    if not username or len(username) < 2:
+        return jsonify({'ok': False, 'error': '用户名至少2个字符'})
+    if not password or len(password) < 4:
+        return jsonify({'ok': False, 'error': '密码至少4个字符'})
+    
+    conn = get_db()
+    try:
+        existing = conn.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
+        if existing:
+            return jsonify({'ok': False, 'error': '用户名已存在'})
+        
+        cursor = conn.execute(
+            'INSERT INTO users (username, password_hash) VALUES (?, ?)',
+            (username, generate_password_hash(password))
+        )
+        user_id = cursor.lastrowid
+        conn.commit()
+        
+        session['user_id'] = user_id
+        session['username'] = username
+        
+        return jsonify({'ok': True, 'user': {'id': user_id, 'username': username}})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'ok': False, 'error': str(e)})
+    finally:
+        conn.close()
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    
+    conn = get_db()
+    user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+    conn.close()
+    
+    if not user or not check_password_hash(user['password_hash'], password):
+        return jsonify({'ok': False, 'error': '用户名或密码错误'})
+    
+    session['user_id'] = user['id']
+    session['username'] = user['username']
+    
+    return jsonify({
+        'ok': True,
+        'user': {
+            'id': user['id'],
+            'username': user['username'],
+            'nickname': user['nickname'],
+            'avatar_url': user['avatar_url']
+        }
+    })
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    session.pop('user_id', None)
+    session.pop('username', None)
+    return jsonify({'ok': True})
+
+@app.route('/api/me')
+def get_me():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'ok': False, 'error': '未登录'})
+    
+    conn = get_db()
+    user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    conn.close()
+    
+    if not user:
+        return jsonify({'ok': False, 'error': '用户不存在'})
+    
+    return jsonify({
+        'ok': True,
+        'user': {
+            'id': user['id'],
+            'username': user['username'],
+            'nickname': user['nickname'],
+            'avatar_url': user['avatar_url']
+        }
+    })
+
+@app.route('/api/profile/update', methods=['POST'])
+def update_profile():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'ok': False, 'error': '请先登录'})
+    
+    data = request.get_json()
+    nickname = data.get('nickname', '').strip()
+    
+    conn = get_db()
+    try:
+        conn.execute('UPDATE users SET nickname = ? WHERE id = ?', (nickname, user_id))
+        conn.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+    finally:
+        conn.close()
+
+@app.route('/api/profile/avatar', methods=['POST'])
+def upload_avatar():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'ok': False, 'error': '请先登录'})
+    
+    if 'avatar' not in request.files:
+        return jsonify({'ok': False, 'error': '请选择图片'})
+    
+    file = request.files['avatar']
+    if not file.filename:
+        return jsonify({'ok': False, 'error': '请选择图片'})
+    
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ('.jpg', '.jpeg', '.png', '.gif'):
+        return jsonify({'ok': False, 'error': '仅支持jpg/png/gif'})
+    
+    filename = f'avatar_{user_id}{ext}'
+    avatar_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'avatars')
+    os.makedirs(avatar_dir, exist_ok=True)
+    file.save(os.path.join(avatar_dir, filename))
+    
+    avatar_url = f'/uploads/avatars/{filename}'
+    
+    conn = get_db()
+    conn.execute('UPDATE users SET avatar_url = ? WHERE id = ?', (avatar_url, user_id))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'ok': True, 'avatar_url': avatar_url})
+
+@app.route('/api/my/trips')
+def get_my_trips():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'ok': False, 'error': '未登录'})
+    
+    conn = get_db()
+    trips = conn.execute("""
+        SELECT t.*, ut.joined_at as joined_at
+        FROM trips t
+        JOIN user_trips ut ON ut.trip_id = t.id
+        WHERE ut.user_id = ?
+        ORDER BY ut.joined_at DESC
+    """, (user_id,)).fetchall()
+    conn.close()
+    
+    return jsonify({
+        'ok': True,
+        'trips': [{
+            'id': t['id'],
+            'name': t['name'],
+            'share_code': t['share_code'],
+            'created_at': t['created_at'],
+            'joined_at': t['joined_at']
+        } for t in trips]
+    })
+
+@app.route('/profile')
+def profile_page():
+    return render_template('profile.html')
+
 @app.route('/trip/<int:trip_id>')
 def trip_dashboard(trip_id):
     member_id = session.get('member_id', 0)
@@ -190,6 +380,15 @@ def create_trip():
         session['member_id'] = member_id
         session['member_name'] = member_name
         
+        # 关联登录用户
+        user_id = session.get('user_id')
+        if user_id:
+            conn.execute(
+                'INSERT OR IGNORE INTO user_trips (user_id, trip_id) VALUES (?, ?)',
+                (user_id, trip_id)
+            )
+            conn.commit()
+        
         return jsonify({
             'ok': True,
             'trip_id': trip_id,
@@ -240,6 +439,15 @@ def join_trip():
         session['trip_id'] = trip['id']
         session['member_id'] = member_id
         session['member_name'] = member_name
+        
+        # 关联登录用户
+        user_id = session.get('user_id')
+        if user_id:
+            conn.execute(
+                'INSERT OR IGNORE INTO user_trips (user_id, trip_id) VALUES (?, ?)',
+                (user_id, trip['id'])
+            )
+            conn.commit()
         
         return jsonify({
             'ok': True,
