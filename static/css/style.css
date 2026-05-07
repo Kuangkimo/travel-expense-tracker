@@ -552,10 +552,33 @@ body {
 }
 
 .action-grid-3 {
-    grid-template-columns: repeat(3, 1fr);
-    max-width: 420px;
-    margin-left: auto;
-    margin-right: auto;
+    grid-template-columns: 2fr 1fr 1fr;
+}
+
+.action-card-settle {
+    background: linear-gradient(135deg, var(--primary-light) 0%, #ffffff 100%);
+    border: 1px solid rgba(14,165,160,0.2);
+    flex-direction: row;
+    padding: 18px 20px;
+    gap: 14px;
+    grid-column: span 2;
+}
+
+.action-card-settle .action-icon {
+    font-size: 32px;
+}
+
+.action-card-settle .action-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.action-sub-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: block;
+    margin-top: 1px;
 }
 
 /* ── 支出列表 ── */
@@ -1308,25 +1331,75 @@ body {
 
 /* ── 最近行程 ── */
 .recent-list {
-    margin-top: 20px;
+    margin-top: 24px;
 }
 
 .recent-list h3 {
-    font-size: 16px; margin-bottom: 10px;
+    font-size: 16px; font-weight: 600;
+    margin-bottom: 10px;
 }
 
 .recent-item {
-    display: flex; justify-content: space-between; align-items: center;
+    display: flex; align-items: center;
     background: var(--card);
-    padding: 14px;
+    padding: 14px 16px;
     border-radius: var(--radius);
     margin-bottom: 8px;
     cursor: pointer;
     box-shadow: var(--shadow);
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
-.recent-name { font-weight: 500; }
-.recent-code { color: var(--text-secondary); font-size: 13px; }
+.recent-item:hover { border-color: var(--primary-light); }
+.recent-item:active { transform: scale(0.98); }
+
+.recent-info { flex: 1; min-width: 0; }
+
+.recent-name {
+    font-size: 15px; font-weight: 600;
+    display: block; margin-bottom: 2px;
+}
+
+.recent-code {
+    font-size: 12px;
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+}
+
+.recent-arrow {
+    font-size: 24px; color: var(--text-secondary);
+    opacity: 0.4; padding-left: 8px;
+}
+
+/* ── 历史详情弹窗 ── */
+.history-modal-body { min-height: 120px; }
+.history-info-grid {
+    display: flex; flex-direction: column; gap: 10px;
+}
+.history-info-item {
+    display: flex; justify-content: space-between;
+    align-items: center; padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+}
+.history-info-item:last-child { border-bottom: none; }
+.hi-label {
+    font-size: 13px; color: var(--text-secondary); flex-shrink: 0;
+}
+.hi-value {
+    font-size: 14px; font-weight: 500;
+    text-align: right; word-break: break-all;
+}
+.hi-value.code {
+    font-family: 'Courier New', monospace;
+    font-weight: 700; letter-spacing: 3px;
+    color: var(--primary); font-size: 18px;
+}
+.hi-value.primary {
+    color: var(--primary); font-weight: 700; font-size: 18px;
+}
 
 /* ── Toast ── */
 .toast {
