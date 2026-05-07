@@ -564,7 +564,10 @@ body {
     padding: 14px;
     border-bottom: 1px solid var(--bg);
     gap: 12px;
+    cursor: default;
 }
+
+.expense-item[onclick] { cursor: pointer; }
 
 .expense-item:last-child { border-bottom: none; }
 
@@ -580,18 +583,32 @@ body {
 .expense-info { flex: 1; min-width: 0; }
 
 .expense-top {
-    display: flex; justify-content: space-between;
+    display: flex; align-items: center;
+    gap: 8px;
     margin-bottom: 2px;
 }
 
 .expense-category {
     font-size: 15px; font-weight: 500;
+    flex-shrink: 0;
 }
 
 .expense-amount {
     font-size: 16px; font-weight: 600;
     color: var(--text);
+    margin-left: auto;
 }
+
+.expense-split-tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+.tag-self { background: #D1FAE5; color: #065F46; }
+.tag-split { background: #DBEAFE; color: #1E40AF; }
+.tag-custom { background: #FEF3C7; color: #92400E; }
 
 .expense-bottom {
     font-size: 12px; color: var(--text-secondary);

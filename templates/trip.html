@@ -302,11 +302,12 @@ async function loadExpenses() {
             `;
         } else {
             document.getElementById('expenseList').innerHTML = filtered.map(e => `
-                <div class="expense-item">
+                <div class="expense-item" ${e.member_id === currentMemberId ? `onclick="editExpense(${e.id},'${e.category.replace(/'/g,"\\'")}',${e.amount},'${(e.note||'').replace(/'/g,"\\'")}','${e.split_type}','${e.payer_name}',${e.member_id},${JSON.stringify(e.split_members||[])})"` : ''}>
                     <div class="expense-icon">${getCategoryIcon(e.category)}</div>
                     <div class="expense-info">
                         <div class="expense-top">
                             <span class="expense-category">${e.category}</span>
+                            <span class="expense-split-tag ${e.split_type === 'self' ? 'tag-self' : e.split_type === 'custom' ? 'tag-custom' : 'tag-split'}">${e.split_type === 'self' ? '🙋自付' : e.split_type === 'custom' ? '🎯指定' : '👥均摊'}</span>
                             <span class="expense-amount">¥${e.amount.toFixed(2)}</span>
                         </div>
                         <div class="expense-bottom">
@@ -316,8 +317,8 @@ async function loadExpenses() {
                         </div>
                     </div>
                     <div class="expense-actions">
-                        ${e.member_id === currentMemberId ? `<button class="expense-edit" onclick="editExpense(${e.id},'${e.category}',${e.amount},'${(e.note||'').replace(/'/g,"\\'")}','${e.split_type}','${e.payer_name}',${e.member_id},${JSON.stringify(e.split_members||[])})">✎</button>` : ''}
-                        <button class="expense-delete" onclick="deleteExpense(${e.id})">✕</button>
+                        ${e.member_id === currentMemberId ? `<button class="expense-edit" onclick="event.stopPropagation();editExpense(${e.id},'${e.category.replace(/'/g,"\\'")}',${e.amount},'${(e.note||'').replace(/'/g,"\\'")}','${e.split_type}','${e.payer_name}',${e.member_id},${JSON.stringify(e.split_members||[])})">✎</button>` : ''}
+                        <button class="expense-delete" onclick="event.stopPropagation();deleteExpense(${e.id})">✕</button>
                     </div>
                 </div>
             `).join('');
