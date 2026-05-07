@@ -551,6 +551,13 @@ body {
     font-weight: 500;
 }
 
+.action-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 /* ── 支出列表 ── */
 .expense-list {
     background: var(--card);

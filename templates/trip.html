@@ -74,22 +74,18 @@
     </div>
 
     <!-- 操作导航 -->
-    <div class="action-grid">
+    <div class="action-grid action-grid-3">
         <div class="action-card" onclick="navigateTo('settle')">
             <span class="action-icon">💰</span>
             <span class="action-label">结算</span>
-        </div>
-        <div class="action-card" onclick="navigateTo('sync')">
-            <span class="action-icon">🔄</span>
-            <span class="action-label">同步</span>
         </div>
         <div class="action-card" onclick="manageMembers()">
             <span class="action-icon">📝</span>
             <span class="action-label">代记</span>
         </div>
-        <div class="action-card" onclick="takeScreenshot()">
-            <span class="action-icon">📸</span>
-            <span class="action-label">截图</span>
+        <div class="action-card" onclick="navigateTo('sync')">
+            <span class="action-icon">🔄</span>
+            <span class="action-label">同步</span>
         </div>
     </div>
 
@@ -206,20 +202,6 @@
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeMemberModal()">完成</button>
             </div>
-        </div>
-    </div>
-
-    <!-- 截图弹窗 -->
-    <div id="screenshotModal" class="modal" style="display:none;">
-        <div class="modal-backdrop" onclick="closeScreenshotModal()"></div>
-        <div class="modal-content screenshot-content" id="screenshotContent">
-            <div id="screenshotPreview">
-                <!-- 截图内容由JS生成 -->
-            </div>
-        </div>
-        <div class="screenshot-actions" id="screenshotActions" style="display:none;">
-            <button class="btn btn-primary" onclick="downloadScreenshot()">📥 保存截图</button>
-            <button class="btn btn-secondary" onclick="closeScreenshotModal()">关闭</button>
         </div>
     </div>
 
@@ -644,12 +626,6 @@ async function removeMember(id) {
 }
 
 // ── 截图生成 ──
-function takeScreenshot() {
-    showToast('生成结算截图中...');
-    // 跳转到结算页，触发截图
-    window.location = `/trip/${currentTripId}/settle?screenshot=1`;
-}
-
 // ── Toast ──
 function showToast(msg) {
     const t = document.getElementById('toast');
