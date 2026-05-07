@@ -64,9 +64,24 @@ async function loadProfile() {
         document.getElementById('profileNameDisplay').textContent = displayName;
         document.getElementById('profileUsernameDisplay').textContent = '@' + u.username;
         document.getElementById('nicknameInput').value = u.nickname || '';
+        // 头像图片
+        const avatar = document.getElementById('profileAvatar');
+        const existingImg = avatar.querySelector('img');
         if (u.avatar_url) {
-            document.getElementById('profileAvatar').style.backgroundImage = `url(${u.avatar_url})`;
+            if (!existingImg) {
+                const img = document.createElement('img');
+                img.src = u.avatar_url;
+                img.onerror = function() { this.style.display = 'none'; document.getElementById('profileAvatarText').style.display = 'flex'; };
+                avatar.insertBefore(img, avatar.firstChild);
+            } else {
+                existingImg.src = u.avatar_url;
+            }
+            avatar.classList.add('has-image');
             document.getElementById('profileAvatarText').style.display = 'none';
+        } else {
+            if (existingImg) existingImg.remove();
+            avatar.classList.remove('has-image');
+            document.getElementById('profileAvatarText').style.display = 'flex';
         }
     } catch(e) {
         window.location = '/';

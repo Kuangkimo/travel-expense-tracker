@@ -86,6 +86,19 @@
         </div>
     </div>
 
+    <!-- 结算历史详情弹窗 -->
+    <div id="historyDetailModal" class="modal" style="display:none;">
+        <div class="modal-backdrop" onclick="closeHistoryDetailModal()"></div>
+        <div class="modal-content">
+            <h3 id="historyDetailTitle">结算详情</h3>
+            <div id="historyDetailBody" class="history-detail-body"></div>
+            <div class="modal-actions" style="flex-direction:column;gap:10px;margin-top:16px;">
+                <button class="btn btn-danger btn-full" onclick="deleteHistoryRecord()">🗑️ 删除此记录</button>
+                <button class="btn btn-secondary btn-full" onclick="closeHistoryDetailModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -445,6 +458,8 @@ function closeScreenshotModal() {
 }
 
 // ── 结算记录 ──
+let historyRecords = [];
+
 async function saveSettlement() {
     const note = prompt('给这次结算加个备注（可选）：', `结算 ${new Date().toLocaleDateString()}`);
     if (note === null) return;
@@ -478,6 +493,8 @@ async function loadHistory() {
             return;
         }
         
+        historyRecords = data.records;
+        
         container.innerHTML = data.records.map(r => {
             const s = r.snapshot;
             return `
@@ -495,7 +512,81 @@ async function loadHistory() {
 }
 
 function viewHistorySnapshot(id) {
-    showToast('点击结算记录查看详情（功能开发中）');
+    const record = historyRecords.find(r => r.id === id);
+    if (!record) { showToast('记录不存在'); return; }
+    
+    const s = record.snapshot;
+    const cats = ['餐饮','交通','住宿','门票','购物','酒水/娱乐','其他'];
+    const icons = {'餐饮':'🍽️','交通':'🚗','住宿':'🏠','门票':'🎫','购物':'🛍️','酒水/娱乐':'🍻','其他':'📌'};
+    
+    let catHtml = '';
+    if (s.category_totals && Object.keys(s.category_totals).length > 0) {
+        const total = s.total;
+        catHtml = Object.entries(s.category_totals)
+            .filter(([c,a]) => a > 0)
+            .map(([c,a]) => {
+                const pct = total > 0 ? (a / total * 100).toFixed(1) : 0;
+                return `<div class="history-detail-row"><span>${icons[c]||'📌'} ${c}</span><span class="hd-amount">¥${a.toFixed(2)} (${pct}%)</span></div>`;
+            }).join('');
+    }
+    
+    let balanceHtml = '';
+    if (s.balances) {
+        balanceHtml = Object.values(s.balances).map(b => {
+            const isPos = b.balance > 0;
+            const isZero = Math.abs(b.balance) < 0.01;
+            return `<div class="history-detail-row"><span>${b.name}</span><span class="hd-amount ${isZero ? '' : isPos ? 'hd-positive' : 'hd-negative'}">${isZero ? '✅ 平了' : isPos ? `应收 ¥${b.balance.toFixed(2)}` : `应付 ¥${(-b.balance).toFixed(2)}`}</span></div>`;
+        }).join('');
+    }
+    
+    let settleHtml = '';
+    if (s.settlements && s.settlements.length > 0) {
+        settleHtml = s.settlements.map(st => 
+            `<div class="history-detail-row"><span>${st.from_name} → ${st.to_name}</span><span class="hd-amount hd-settle">¥${st.amount.toFixed(2)}</span></div>`
+        ).join('');
+    } else {
+        settleHtml = '<div style="text-align:center;color:var(--text-secondary);padding:8px;">🎉 账目已平</div>';
+    }
+    
+    document.getElementById('historyDetailTitle').textContent = `📋 结算记录 - ${formatTime(record.created_at)}`;
+    document.getElementById('historyDetailBody').innerHTML = `
+        <div class="history-detail-grid">
+            <div class="history-detail-summary">
+                <span>总花费</span><span class="hd-amount hd-primary">¥${s.total.toFixed(2)}</span>
+                <span>人均</span><span class="hd-amount">¥${(s.per_person||0).toFixed(2)}</span>
+                <span>成员</span><span class="hd-amount">${s.member_count||0}人</span>
+            </div>
+            ${record.note ? `<div class="history-detail-note">📌 ${record.note}</div>` : ''}
+            <div class="hd-section"><h4>📊 分类统计</h4>${catHtml}</div>
+            <div class="hd-section"><h4>💰 收支平衡</h4>${balanceHtml}</div>
+            <div class="hd-section"><h4>🤝 结算方案</h4>${settleHtml}</div>
+        </div>
+    `;
+    
+    document.getElementById('historyDetailModal').dataset.recordId = id;
+    document.getElementById('historyDetailModal').style.display = 'flex';
+}
+
+function closeHistoryDetailModal() {
+    document.getElementById('historyDetailModal').style.display = 'none';
+}
+
+async function deleteHistoryRecord() {
+    const id = parseInt(document.getElementById('historyDetailModal').dataset.recordId);
+    if (!id || !confirm('确定删除这条结算记录？')) return;
+    try {
+        const res = await fetch(`/api/trip/${currentTripId}/settlement/${id}/delete`, {method: 'POST'});
+        const data = await res.json();
+        if (data.ok) {
+            showToast('✅ 已删除');
+            closeHistoryDetailModal();
+            loadHistory();
+        } else {
+            showToast(data.error || '删除失败');
+        }
+    } catch(e) {
+        showToast('网络错误');
+    }
 }
 
 function goBack() {

@@ -285,11 +285,9 @@ def upload_avatar():
         return jsonify({'ok': False, 'error': '仅支持jpg/png/gif'})
     
     filename = f'avatar_{user_id}{ext}'
-    avatar_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'avatars')
-    os.makedirs(avatar_dir, exist_ok=True)
-    file.save(os.path.join(avatar_dir, filename))
+    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
     
-    avatar_url = f'/uploads/avatars/{filename}'
+    avatar_url = f'/uploads/{filename}'
     
     conn = get_db()
     conn.execute('UPDATE users SET avatar_url = ? WHERE id = ?', (avatar_url, user_id))
@@ -1246,6 +1244,22 @@ def settlement_history(trip_id):
             'created_at': r['created_at']
         } for r in records]
     })
+
+@app.route('/api/trip/<int:trip_id>/settlement/<int:record_id>/delete', methods=['POST'])
+def delete_settlement_record(trip_id, record_id):
+    """删除结算记录"""
+    conn = get_db()
+    try:
+        conn.execute(
+            'DELETE FROM settlements WHERE id = ? AND trip_id = ?',
+            (record_id, trip_id)
+        )
+        conn.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+    finally:
+        conn.close()
 
 # ── 静态文件 ────────────────────────────────
 

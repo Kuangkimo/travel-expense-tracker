@@ -1503,16 +1503,23 @@ body {
     border-radius: var(--radius-xl);
 }
 .profile-avatar {
-    width: 80px; height: 80px;
+    width: 100px; height: 100px;
     border-radius: 50%;
     background: var(--primary-gradient);
     color: white;
     display: flex; align-items: center; justify-content: center;
-    font-size: 36px; font-weight: 700;
+    font-size: 42px; font-weight: 700;
     margin: 0 auto 12px;
     position: relative;
-    background-size: cover;
-    background-position: center;
+    overflow: hidden;
+}
+.profile-avatar.has-image {
+    background: var(--card);
+}
+.profile-avatar img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
 }
 .profile-avatar-overlay {
     position: absolute; inset: 0;
@@ -1552,6 +1559,53 @@ body {
     margin-top: 24px;
     padding-bottom: 40px;
 }
+
+/* ── 结算历史详情 ── */
+.history-detail-body {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+.history-detail-grid {
+    display: flex; flex-direction: column; gap: 12px;
+}
+.history-detail-summary {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 16px;
+    padding: 12px;
+    background: var(--primary-light);
+    border-radius: var(--radius);
+    font-size: 14px;
+}
+.hd-amount {
+    text-align: right;
+    font-weight: 600;
+}
+.hd-primary { color: var(--primary); font-size: 20px; }
+.hd-positive { color: var(--danger); }
+.hd-negative { color: var(--success); }
+.hd-settle { color: var(--danger); font-size: 15px; }
+.history-detail-note {
+    padding: 8px 12px;
+    background: #FEF3C7;
+    border-radius: 8px;
+    font-size: 13px; color: #92400E;
+}
+.hd-section {
+    padding: 12px;
+    background: var(--bg);
+    border-radius: var(--radius);
+}
+.hd-section h4 {
+    font-size: 14px; margin-bottom: 8px; font-weight: 600;
+}
+.history-detail-row {
+    display: flex; justify-content: space-between;
+    padding: 5px 0;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+}
+.history-detail-row:last-child { border-bottom: none; }
 
 /* ── Toast ── */
 .toast {

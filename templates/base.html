@@ -45,9 +45,14 @@
                 if (data.ok) {
                     const u = data.user;
                     const displayName = u.nickname || u.username;
+                    const initial = displayName[0];
+                    let avatarHtml = `<span class="user-avatar-sm">${initial}</span>`;
+                    if (u.avatar_url) {
+                        avatarHtml = `<span class="user-avatar-sm" style="background:none;overflow:hidden;"><img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none'"></span>`;
+                    }
                     nav.innerHTML = `
                         <a href="/profile" class="user-nav-link">
-                            <span class="user-avatar-sm">${displayName[0]}</span>
+                            ${avatarHtml}
                             <span class="user-nav-name">${displayName}</span>
                         </a>
                     `;
