@@ -141,7 +141,8 @@ def index():
 
 @app.route('/trip/<int:trip_id>')
 def trip_dashboard(trip_id):
-    return render_template('trip.html', trip_id=trip_id, categories=CATEGORIES, icons=CATEGORY_ICONS)
+    member_id = session.get('member_id', 0)
+    return render_template('trip.html', trip_id=trip_id, categories=CATEGORIES, icons=CATEGORY_ICONS, current_member_id=member_id)
 
 @app.route('/trip/<int:trip_id>/add')
 def add_expense(trip_id):
@@ -796,19 +797,42 @@ def calc_settlement(trip_id):
             category_totals[cat] = category_totals.get(cat, 0) + e['amount']
             total += e['amount']
         
-        # 成员支出明细
+        # 自付 vs 分摊统计
+        self_paid_total = 0.0
+        split_total = 0.0
+        self_paid_expenses = []
+        split_expenses = []
+        for e in expenses:
+            is_self = e['split_type'] == 'self'
+            amt = e['amount']
+            if is_self:
+                self_paid_total += amt
+                self_paid_expenses.append(e)
+            else:
+                split_total += amt
+                split_expenses.append(e)
+        
+        # 成员支出明细（带 split_type 标识）
         member_expenses = {}
         for m in members:
             member_expenses[m['id']] = {
                 'name': m['name'],
+                'self_paid': 0.0,
+                'split_amount': 0.0,
                 'expenses': []
             }
         for e in expenses:
+            is_self = e['split_type'] == 'self'
             member_expenses[e['member_id']]['expenses'].append({
                 'amount': e['amount'],
                 'category': e['category'],
-                'note': e['note']
+                'note': e['note'],
+                'split_type': e['split_type']
             })
+            if is_self:
+                member_expenses[e['member_id']]['self_paid'] += e['amount']
+            else:
+                member_expenses[e['member_id']]['split_amount'] += e['amount']
         
         return {
             'ok': True,
@@ -818,7 +842,9 @@ def calc_settlement(trip_id):
             'settlements': settlements,
             'category_totals': category_totals,
             'member_expenses': member_expenses,
-            'member_count': len(members)
+            'member_count': len(members),
+            'self_paid_total': round(self_paid_total, 2),
+            'split_total': round(split_total, 2)
         }
     finally:
         conn.close()

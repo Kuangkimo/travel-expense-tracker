@@ -847,6 +847,71 @@ body {
 
 .summary-value.primary { color: var(--primary); }
 
+/* 费用类型（自付 vs 分摊） */
+.split-type-detail {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+}
+.split-type-card {}
+.split-type-row {
+    display: flex; align-items: center;
+    gap: 10px;
+}
+.split-type-icon {
+    font-size: 22px;
+    width: 36px; text-align: center;
+}
+.split-type-info { flex: 1; }
+.split-type-label {
+    font-size: 13px; color: var(--text-secondary);
+}
+.split-type-amount {
+    font-size: 18px; font-weight: 700;
+}
+.split-type-pct {
+    font-size: 14px; font-weight: 600;
+    color: var(--text-secondary);
+}
+.split-type-bar-track {
+    height: 8px;
+    background: var(--bg);
+    border-radius: 4px;
+    margin: 8px 0;
+    overflow: hidden;
+    display: flex;
+}
+.split-type-bar {
+    height: 100%;
+    transition: width 0.5s ease;
+    border-radius: 4px;
+}
+.split-type-bar.self-bar {
+    background: #10B981;
+}
+.split-type-bar.split-bar {
+    background: #3B82F6;
+}
+
+/* 成员明细中的费用类型标签 */
+.member-detail-split-summary {
+    display: flex; gap: 12px;
+    padding: 6px 0 10px;
+    font-size: 13px;
+}
+.self-badge { color: #10B981; font-weight: 500; }
+.split-badge { color: #3B82F6; font-weight: 500; }
+.expense-split-tag {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+.tag-self { background: #D1FAE5; color: #065F46; }
+.tag-split { background: #DBEAFE; color: #1E40AF; }
+
 /* 分类详情 */
 .category-detail-list {
     background: var(--card);

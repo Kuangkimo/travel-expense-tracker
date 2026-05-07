@@ -229,7 +229,7 @@
 let currentTripId = {{ trip_id }};
 let members = [];
 let allExpenses = [];
-let currentMemberId = null;
+let currentMemberId = {{ current_member_id }};
 
 document.addEventListener('DOMContentLoaded', function() {
     loadTripInfo();
@@ -248,10 +248,6 @@ async function loadTripInfo() {
         document.getElementById('tripNameHeader').textContent = trip.name;
         document.getElementById('shareCodeDisplay').textContent = trip.share_code;
         document.getElementById('memberCount').textContent = members.length;
-        
-        // 找到当前用户的 member_id
-        const self = members.find(m => m.is_self);
-        currentMemberId = self ? self.id : null;
         
         // 渲染成员标签
         document.getElementById('memberChips').innerHTML = members.map(m => 

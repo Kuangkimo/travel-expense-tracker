@@ -10,6 +10,16 @@
         <div class="loading-text">加载结算数据...</div>
     </div>
 
+    <!-- 费用类型：自付 vs 分摊 -->
+    <div class="section">
+        <div class="section-header">
+            <h3>🧾 费用类型</h3>
+        </div>
+        <div id="splitTypeDetail" class="split-type-detail">
+            <div class="loading-text">加载中...</div>
+        </div>
+    </div>
+
     <!-- 分类统计 -->
     <div class="section">
         <div class="section-header">
@@ -95,6 +105,7 @@ async function loadSettlement() {
         
         settlementData = data;
         renderSummary(data);
+        renderSplitType(data);
         renderCategoryDetail(data);
         renderBalances(data);
         renderSettlements(data);
@@ -118,6 +129,46 @@ function renderSummary(data) {
             <div class="summary-item">
                 <span class="summary-label">人均</span>
                 <span class="summary-value">¥${data.per_person.toFixed(2)}</span>
+            </div>
+        </div>
+    `;
+}
+
+function renderSplitType(data) {
+    const selfTotal = data.self_paid_total || 0;
+    const splitTotal = data.split_total || 0;
+    const grandTotal = selfTotal + splitTotal;
+    const container = document.getElementById('splitTypeDetail');
+    
+    if (grandTotal === 0) {
+        container.innerHTML = '<div class="empty-hint">暂无数据</div>';
+        return;
+    }
+    
+    const selfPct = grandTotal > 0 ? (selfTotal / grandTotal * 100) : 0;
+    const splitPct = grandTotal > 0 ? (splitTotal / grandTotal * 100) : 0;
+    
+    container.innerHTML = `
+        <div class="split-type-card">
+            <div class="split-type-row">
+                <div class="split-type-icon">🙋</div>
+                <div class="split-type-info">
+                    <div class="split-type-label">个人承担（自付）</div>
+                    <div class="split-type-amount">¥${selfTotal.toFixed(2)}</div>
+                </div>
+                <div class="split-type-pct">${selfPct.toFixed(1)}%</div>
+            </div>
+            <div class="split-type-bar-track">
+                <div class="split-type-bar self-bar" style="width:${selfPct}%"></div>
+                <div class="split-type-bar split-bar" style="width:${splitPct}%;margin-left:${selfPct}%"></div>
+            </div>
+            <div class="split-type-row" style="margin-top:10px;">
+                <div class="split-type-icon">👥</div>
+                <div class="split-type-info">
+                    <div class="split-type-label">集体分摊</div>
+                    <div class="split-type-amount">¥${splitTotal.toFixed(2)}</div>
+                </div>
+                <div class="split-type-pct">${splitPct.toFixed(1)}%</div>
             </div>
         </div>
     `;
@@ -228,10 +279,15 @@ function renderMemberDetail(data) {
                     <span class="member-detail-total">总支出: ¥${total.toFixed(2)}</span>
                 </div>
                 ${catStr ? `<div class="member-detail-cats">${catStr}</div>` : ''}
+                <div class="member-detail-split-summary">
+                    <span class="self-badge">🙋 自付 ¥${(m.self_paid || 0).toFixed(2)}</span>
+                    <span class="split-badge">👥 分摊 ¥${(m.split_amount || 0).toFixed(2)}</span>
+                </div>
                 <div class="member-detail-expenses">
                     ${m.expenses.map(e => `
                         <div class="member-expense-item">
                             <span class="expense-cat-tag">${e.category}</span>
+                            <span class="expense-split-tag ${e.split_type === 'self' ? 'tag-self' : 'tag-split'}">${e.split_type === 'self' ? '🙋自付' : '👥分摊'}</span>
                             <span class="expense-note-text">${e.note || '（无备注）'}</span>
                             <span class="expense-amount-text">¥${e.amount.toFixed(2)}</span>
                         </div>
@@ -297,6 +353,19 @@ function generateScreenshot() {
             <div style="margin-bottom:16px;">
                 <div style="font-size:14px;font-weight:600;margin-bottom:8px;">📊 分类统计</div>
                 ${catBars}
+            </div>
+            
+            <!-- 费用类型 -->
+            <div style="margin-bottom:16px;">
+                <div style="font-size:14px;font-weight:600;margin-bottom:8px;">🧾 费用类型</div>
+                <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;">
+                    <span>🙋 个人承担</span>
+                    <span style="font-weight:600;">¥${(data.self_paid_total||0).toFixed(2)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;">
+                    <span>👥 集体分摊</span>
+                    <span style="font-weight:600;">¥${(data.split_total||0).toFixed(2)}</span>
+                </div>
             </div>
             
             <!-- Settlement -->
